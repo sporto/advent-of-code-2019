@@ -11,27 +11,30 @@ let parse_file (): int list =
 		|> String.split ~on:','
 		|> List.map ~f:int_of_string
 
-let put _pos _value memory =
-	memory
+let put (pos: int) (value: int) (memory: int list) : int list =
+	List.concat [
+		(List.take memory pos) ;
+		[value] ;
+		(List.drop memory (pos + 1)) ;
+	]
 
-let rec process memory pointer =
+let simple_operation memory op pointer =
+	let address_1 = List.nth_exn memory (pointer + 1) in
+	let address_2 = List.nth_exn memory (pointer + 2) in
+	let address_3 = List.nth_exn memory (pointer + 3) in
+	let value_1 = List.nth_exn memory address_1 in
+	let value_2 = List.nth_exn memory address_2 in
+	put address_3 (op value_1 value_2) memory
+
+
+let rec process pointer memory =
 	match (List.nth_exn memory pointer) with
 	| 1 ->
-		let address_1 = List.nth_exn memory (pointer + 1) in
-		let address_2 = List.nth_exn memory (pointer + 2) in
-		let address_3 = List.nth_exn memory (pointer + 3) in
-		let value_1 = List.nth_exn memory address_1 in
-		let value_2 = List.nth_exn memory address_2 in
-		let next_memory = put address_3 (value_1 + value_2) memory in
-		process next_memory (pointer + 4)
+		simple_operation memory ( + ) pointer
+			|> process (pointer + 4)
 	| 2 ->
-		let address_1 = List.nth_exn memory (pointer + 1) in
-		let address_2 = List.nth_exn memory (pointer + 2) in
-		let address_3 = List.nth_exn memory (pointer + 3) in
-		let value_1 = List.nth_exn memory address_1 in
-		let value_2 = List.nth_exn memory address_2 in
-		let next_memory = put address_3 (value_1 + value_2) memory in
-		process next_memory (pointer + 4)
+		simple_operation memory ( * ) pointer
+			|> process (pointer + 4)
 	| 99 ->
 		memory
 	| _ ->
@@ -47,11 +50,11 @@ let rec try_next memory noun verb =
 			let
 				result =
 					process
+						0
 						(memory
 							|> put 1 noun
 							|> put 2 verb
 						)
-						0
 			in
 				match result with
 				| x :: _ ->

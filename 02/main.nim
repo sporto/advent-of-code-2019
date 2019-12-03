@@ -26,10 +26,13 @@ proc consume(memory: var seq[int], instruction_pointer: int): seq[int] =
             raise
 
 proc main(): int =
-    var memory = read_file()
-    memory[1] = 12
-    memory[2] = 2
-    let result = memory.consume(0)
-    memory[0]
+    for noun in countup(0, 99):
+        for verb in countup(0, 99):
+            var memory = read_file()
+            memory[1] = noun
+            memory[2] = verb
+            let result = memory.consume(0)
+            if result[0] == 19690720:
+                return 100 * noun + verb
 
 echo main()

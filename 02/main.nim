@@ -5,31 +5,31 @@ proc read_file(): seq[int] =
     let file = readFile(filename)
     file.split(",").map(parseInt)
 
-proc consume(instructions: var seq[int], pos: int): seq[int] =
-    let op = instructions[pos]
-    case op:
+proc consume(memory: var seq[int], instruction_pointer: int): seq[int] =
+    let op_code = memory[instruction_pointer]
+    case op_code:
         of 1:
-            let p1 = instructions[pos + 1]
-            let p2 = instructions[pos + 2]
-            let p3 = instructions[pos + 3]
-            instructions[p3] = instructions[p1] + instructions[p2]
-            instructions.consume(pos + 4)
+            let address_1 = memory[instruction_pointer + 1]
+            let address_2 = memory[instruction_pointer + 2]
+            let address_3 = memory[instruction_pointer + 3]
+            memory[address_3] = memory[address_1] + memory[address_2]
+            memory.consume(instruction_pointer + 4)
         of 2:
-            let p1 = instructions[pos + 1]
-            let p2 = instructions[pos + 2]
-            let p3 = instructions[pos + 3]
-            instructions[p3] = instructions[p1] * instructions[p2]
-            instructions.consume(pos + 4)
+            let address_1 = memory[instruction_pointer + 1]
+            let address_2 = memory[instruction_pointer + 2]
+            let address_3 = memory[instruction_pointer + 3]
+            memory[address_3] = memory[address_1] * memory[address_2]
+            memory.consume(instruction_pointer + 4)
         of 99:
-            instructions
+            memory
         else:
             raise
 
 proc main(): int =
-    var instructions = read_file()
-    instructions[1] = 12
-    instructions[2] = 2
-    let result = instructions.consume(0)
-    instructions[0]
+    var memory = read_file()
+    memory[1] = 12
+    memory[2] = 2
+    let result = memory.consume(0)
+    memory[0]
 
 echo main()

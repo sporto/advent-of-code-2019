@@ -19,11 +19,21 @@ let put (pos: int) (value: int) (memory: int list) : int list =
 	]
 
 let simple_operation memory op pointer =
-	let address_1 = List.nth_exn memory (pointer + 1) in
-	let address_2 = List.nth_exn memory (pointer + 2) in
-	let address_3 = List.nth_exn memory (pointer + 3) in
-	let value_1 = List.nth_exn memory address_1 in
-	let value_2 = List.nth_exn memory address_2 in
+	let address_1 =
+		List.nth_exn memory (pointer + 1)
+	in
+	let address_2 =
+		List.nth_exn memory (pointer + 2)
+	in
+	let address_3 =
+		List.nth_exn memory (pointer + 3)
+	in
+	let value_1 =
+		List.nth_exn memory address_1
+	in
+	let value_2 =
+		List.nth_exn memory address_2
+	in
 	put address_3 (op value_1 value_2) memory
 
 

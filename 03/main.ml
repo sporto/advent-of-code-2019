@@ -2,7 +2,7 @@
 (* open Core.String *)
 
 let file_name =
-	"input.a.txt"
+	"input.txt"
 
 let read_file () : string list =
 	Core.In_channel.read_lines file_name
@@ -24,7 +24,6 @@ let parse_move (input: string) : move =
 	| "U" -> U num
 	| "D" -> D num
 	| _ -> MoveUnknown
-
 
 let rec repeat e acc times =
 	match times with
@@ -88,7 +87,7 @@ let rec keep_dups acc prev list =
 			keep_dups acc x rest
 
 let get_distance (x, y) =
-	x + y
+	(abs x + abs y, x , y)
 
 let () =
 	read_file ()
@@ -99,4 +98,4 @@ let () =
 		|> keep_dups [] (0,0)
 		|> Core.List.map ~f:get_distance
 		|> List.sort compare
-		|> Core.List.iter ~f:(Core.printf "%d ")
+		|> Core.List.iter ~f:(function (s, x, y) -> Core.printf "(%d, %d, %d)" s x y)

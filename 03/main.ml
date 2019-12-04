@@ -41,10 +41,10 @@ let parse_path (input: string) : move list =
 let sum_path path =
 	path
 		|> List.map ~f:move_to_num
-		|> List.sum
+		|> List.sum (module Int) ~f:ident
 
 let () =
 	read_file ()
 		|> List.map ~f:parse_path
 		|> List.map ~f:sum_path
-		|> List.iter ~f:(printf "%s ")
+		|> List.iter ~f:(printf "%i ")

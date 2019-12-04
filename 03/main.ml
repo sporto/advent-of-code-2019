@@ -1,11 +1,11 @@
-open Core
-open Core.String
+(* open Core *)
+(* open Core.String *)
 
 let file_name =
 	"input.a.txt"
 
 let read_file () : string list =
-	In_channel.read_lines file_name
+	Core.In_channel.read_lines file_name
 
 type move =
 	| R of int
@@ -23,8 +23,8 @@ let move_to_num move =
 	| MoveUnknown -> 0
 
 let parse_move (input: string) : move =
-	let code    = prefix input 1 in
-	let num_str = drop_prefix input 1 in
+	let code    = Core.String.prefix input 1 in
+	let num_str = Core.String.drop_prefix input 1 in
 	let num     = int_of_string num_str in
 	match code with
 	| "R" -> R num
@@ -55,14 +55,14 @@ let move_to_steps (move: move) : step list =
 
 let parse_path (input: string) : move list =
 	input
-		|> String.split ~on:','
-		|> List.map ~f:parse_move
+		|> Core.String.split ~on:','
+		|> Core.List.map ~f:parse_move
 
 let rec walk_steps acc pos (steps: step list) : (int * int) list =
 	match steps with
 	| [] -> acc
 	| step :: rest ->
-		let nextAcc = pos :: acc 
+		let nextAcc = pos :: acc
 		in
 		let (x, y) = pos
 		in
@@ -75,20 +75,22 @@ let rec walk_steps acc pos (steps: step list) : (int * int) list =
 
 let walk_path (path: move list) : (int * int) list =
 	path
-		|> List.concat_map ~f:move_to_steps
+		|> Core.List.concat_map ~f:move_to_steps
 		|> walk_steps [] (0,0)
 
 let coor_to_string (x, y) =
 	"(" ^ string_of_int x ^ "," ^ string_of_int y ^ ")"
-
+(* 
 let trail_to_string trail =
 	trail
 		|> List.map ~f:coor_to_string
-		|> String.concat ~sep:","
+		|> String.concat ~sep:"," *)
 
 let () =
 	read_file ()
-		|> List.map ~f:parse_path
-		|> List.map ~f:walk_path
-		|> List.map ~f:trail_to_string
-		|> List.iter ~f:(printf "%S ")
+		|> Core.List.map ~f:parse_path
+		|> Core.List.map ~f:walk_path
+		|> Core.List.concat
+		|> List.sort compare
+		|> Core.List.map ~f:coor_to_string
+		|> Core.List.iter ~f:(Core.printf "%S ")

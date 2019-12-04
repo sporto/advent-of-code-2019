@@ -14,14 +14,6 @@ type move =
 	| D of int
 	| MoveUnknown
 
-let move_to_num move =
-	match move with
-	| R n -> n
-	| L n -> n
-	| D n -> n
-	| U n -> n
-	| MoveUnknown -> 0
-
 let parse_move (input: string) : move =
 	let code    = Core.String.prefix input 1 in
 	let num_str = Core.String.drop_prefix input 1 in
@@ -86,11 +78,25 @@ let trail_to_string trail =
 		|> List.map ~f:coor_to_string
 		|> String.concat ~sep:"," *)
 
+let rec keep_dups acc prev list =
+	match list with
+	| [] -> acc
+	| x :: rest ->
+		if prev = x then
+			keep_dups (x :: acc) x rest
+		else
+			keep_dups acc x rest
+
+let get_distance (x, y) =
+	x + y
+
 let () =
 	read_file ()
 		|> Core.List.map ~f:parse_path
 		|> Core.List.map ~f:walk_path
 		|> Core.List.concat
 		|> List.sort compare
-		|> Core.List.map ~f:coor_to_string
-		|> Core.List.iter ~f:(Core.printf "%S ")
+		|> keep_dups [] (0,0)
+		|> Core.List.map ~f:get_distance
+		|> List.sort compare
+		|> Core.List.iter ~f:(Core.printf "%d ")

@@ -27,7 +27,6 @@ proc hasTwo(s: seq[int]): bool =
         )
         .join()
         .split("/")
-        .map(print_return)
         .anyIt(it.len == 2)
 
 proc noDecreasing(s: seq[int]): bool =
@@ -45,6 +44,6 @@ proc main(): int =
         .map(isMatch)
         .foldl(a + b)
 
-# echo main()
+echo main()
 
-echo hasTwo(@[2, 1, 3, 3, 1])
+# echo hasTwo(@[2, 1, 3, 3, 1])

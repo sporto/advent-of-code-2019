@@ -1,5 +1,7 @@
 import strutils, sequtils, math
 
+type Mode = enum Position, Immediate
+
 proc read_file(): seq[int] =
     let filename = "input.txt"
     let file = readFile(filename)
@@ -8,17 +10,23 @@ proc read_file(): seq[int] =
 proc get_op_code(op: int): int =
     op mod 100
 
-proc get_mode(op: int, pos: int): float =
-    (floor (op.toFloat / pow(10, pos.toFloat + 1))) mod 10
+proc get_mode(op: int, pos: int): Mode =
+    let mode = (floor (op.toFloat / pow(10, pos.toFloat + 1))) mod 10
+    if mode == 0:
+        Position
+    else:
+        Immediate
 
 proc get_input(memory: seq[int], instruction_pointer: int, op: int,
         pos: int): int =
     let mode = get_mode(op, pos)
     let address_or_value = memory[instruction_pointer + pos]
-    if mode == 0:
-        memory[address_or_value]
-    else:
-        address_or_value
+
+    case mode
+        of Position:
+            memory[address_or_value]
+        of Immediate:
+            address_or_value
 
 proc consume(memory: var seq[int], instruction_pointer: int): seq[int] =
     let op = memory[instruction_pointer]

@@ -2,13 +2,32 @@ import strutils, sequtils, math
 
 type Mode = enum Position, Immediate
 
+type OpCode = enum
+    Add,
+    Mul,
+    Input,
+    Output,
+    Halt
+
 proc read_file(): seq[int] =
     let filename = "input.txt"
     let file = readFile(filename)
     file.split(",").map(parseInt)
 
-proc get_op_code(op: int): int =
-    op mod 100
+proc get_op_code(op: int): OpCode =
+    case op mod 100:
+        of 1:
+            Add
+        of 2:
+            Mul
+        of 3:
+            Input
+        of 4:
+            Output
+        of 99:
+            Halt
+        else:
+            raise newException(IOError, "failed")
 
 proc get_mode(op: int, pos: int): Mode =
     let mode = (floor (op.toFloat / pow(10, pos.toFloat + 1))) mod 10
@@ -33,30 +52,28 @@ proc consume(memory: var seq[int], instruction_pointer: int): seq[int] =
     # echo op
 
     case op.get_op_code:
-        of 1:
+        of Add:
             let in1 = get_input(memory, instruction_pointer, op, 1)
             let in2 = get_input(memory, instruction_pointer, op, 2)
             let address_3 = memory[instruction_pointer + 3]
             memory[address_3] = in1 + in2
             memory.consume(instruction_pointer + 4)
-        of 2:
+        of Mul:
             let in1 = get_input(memory, instruction_pointer, op, 1)
             let in2 = get_input(memory, instruction_pointer, op, 2)
             let address_3 = memory[instruction_pointer + 3]
             memory[address_3] = in1 * in2
             memory.consume(instruction_pointer + 4)
-        of 3:
+        of Input:
             let address = memory[instruction_pointer + 1]
             memory[address] = 1
             memory.consume(instruction_pointer + 2)
-        of 4:
+        of Output:
             let address = memory[instruction_pointer + 1]
             echo memory[address]
             memory.consume(instruction_pointer + 2)
-        of 99:
+        of Halt:
             memory
-        else:
-            raise newException(IOError, "failed")
 
 proc main(): int =
     var memory = read_file()

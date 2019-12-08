@@ -1,6 +1,6 @@
 import strutils, sequtils, tables, sugar
 
-const FILENAME = "input.1.txt"
+const FILENAME = "input.txt"
 
 proc get_input(): seq[string] =
     read_file(FILENAME)

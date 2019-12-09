@@ -34,8 +34,38 @@ proc count_orbits(
             cache[key] = 0
             0
 
+proc rec_get_distances_for(
+        graph: Table[string, string],
+        key: string,
+        current_level: int,
+        map: var Table[string, int]
+    ): Table[string, int] =
 
-proc main(): void =
+    if graph.has_key(key):
+        let orbiting = graph[key]
+        map[orbiting] = current_level
+        rec_get_distances_for(
+            graph,
+            orbiting,
+            current_level + 1,
+            map
+        )
+    else:
+        map
+
+proc get_distances_for(
+        graph: Table[string, string],
+        key: string
+    ): Table[string, int] =
+    var map = initTable[string, int]()
+    rec_get_distances_for(
+        graph,
+        key,
+        0,
+        map
+    )
+
+proc main_a(): void =
     var graph = initTable[string, string]()
 
     let _ = get_input()
@@ -50,4 +80,30 @@ proc main(): void =
 
     echo count
 
-main()
+proc main_b(): void =
+    var graph = initTable[string, string]()
+
+    let _ = get_input()
+        .map(parse_line)
+        .add_to_map(graph)
+
+    let you_map = get_distances_for(graph, "YOU")
+
+    let san_map = get_distances_for(graph, "SAN")
+
+    var combined_distances = initTable[string, int]()
+
+    for k in you_map.keys:
+        if san_map.has_key(k):
+            let dist = you_map[k] + san_map[k]
+            combined_distances[k] = dist
+
+    echo combined_distances
+
+    var smallest = 1_000_000
+    for v in combined_distances.values:
+        smallest = min(v, smallest)
+
+    echo smallest
+
+main_b()

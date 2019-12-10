@@ -12,3 +12,6 @@ indent_style = tab
 
 [*.ml]
 indent_style = tab
+
+[*.gleam]
+indent_style = tab

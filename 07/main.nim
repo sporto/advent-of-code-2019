@@ -1,4 +1,4 @@
-import strutils, sequtils, math
+import strutils, sequtils, math, strformat
 
 type Mode = enum Position, Immediate
 
@@ -49,10 +49,10 @@ proc get_mode(op: int, pos: int): Mode =
     else:
         Immediate
 
-proc get_input(memory: seq[int], instruction_pointer: int, op: int,
+proc get_param(memory: seq[int], pointer: int, op: int,
         pos: int): int =
     let mode = get_mode(op, pos)
-    let address_or_value = memory[instruction_pointer + pos]
+    let address_or_value = memory[pointer + pos]
 
     case mode
         of Position:
@@ -61,30 +61,34 @@ proc get_input(memory: seq[int], instruction_pointer: int, op: int,
             address_or_value
 
 proc consume(memory: var seq[int],
-        instruction_pointer: int,
+        pointer: int,
         inputs: seq[int],
         output: int
     ): int =
 
-    let op = memory[instruction_pointer]
-    # echo instruction_pointer
+    let op = memory[pointer]
+    # echo pointer
     echo op.get_op_code
 
     case op.get_op_code:
         of Add:
-            let in1 = get_input(memory, instruction_pointer, op, 1)
-            let in2 = get_input(memory, instruction_pointer, op, 2)
-            let address_3 = memory[instruction_pointer + 3]
-            memory[address_3] = in1 + in2
-            memory.consume(instruction_pointer + 4, inputs, output)
+            let val1 = get_param(memory, pointer, op, 1)
+            let val2 = get_param(memory, pointer, op, 2)
+            let address_3 = memory[pointer + 3]
+            memory[address_3] = val1 + val2
+            # echo fmt"  *opMul* val1: {val1}, val2: {val2}, par3: {address_3}"
+            # echo memory
+            memory.consume(pointer + 4, inputs, output)
         of Mul:
-            let in1 = get_input(memory, instruction_pointer, op, 1)
-            let in2 = get_input(memory, instruction_pointer, op, 2)
-            let address_3 = memory[instruction_pointer + 3]
-            memory[address_3] = in1 * in2
-            memory.consume(instruction_pointer + 4, inputs, output)
+            let val1 = get_param(memory, pointer, op, 1)
+            let val2 = get_param(memory, pointer, op, 2)
+            let address_3 = memory[pointer + 3]
+            memory[address_3] = val1 * val2
+            # echo fmt"  *opMul* val1: {val1}, val2: {val2}, par3: {address_3}"
+            # echo memory
+            memory.consume(pointer + 4, inputs, output)
         of Input:
-            let address = memory[instruction_pointer + 1]
+            let address = memory[pointer + 1]
             # echo " - input into address " & $(address)
             if inputs.len == 0:
                 raise newException(IOError, "No more inputs")
@@ -92,52 +96,57 @@ proc consume(memory: var seq[int],
                 let input = inputs[0]
                 echo " - Input " & $(input)
                 memory[address] = input
-                memory.consume(instruction_pointer + 2, inputs[1 ..
+                memory.consume(pointer + 2, inputs[1 ..
                         < inputs.len], output)
         of Output:
-            let in1 = get_input(memory, instruction_pointer, op, 1)
+            let in1 = get_param(memory, pointer, op, 1)
+            echo memory[pointer + 1]
             echo " - out " & $(in1)
-            memory.consume(instruction_pointer + 2, inputs, in1)
+            # echo memory[31]
+            # echo memory
+            memory.consume(pointer + 2, inputs, in1)
         of JumpIfTrue:
-            let in1 = get_input(memory, instruction_pointer, op, 1)
-            let in2 = get_input(memory, instruction_pointer, op, 2)
+            let in1 = get_param(memory, pointer, op, 1)
+            let in2 = get_param(memory, pointer, op, 2)
             if in1 == 0:
-                memory.consume(instruction_pointer + 3, inputs, output)
+                memory.consume(pointer + 3, inputs, output)
             else:
                 echo " - jumping to " & $(in2)
                 memory.consume(in2, inputs, output)
         of JumpIfFalse:
-            let in1 = get_input(memory, instruction_pointer, op, 1)
-            let in2 = get_input(memory, instruction_pointer, op, 2)
+            let in1 = get_param(memory, pointer, op, 1)
+            let in2 = get_param(memory, pointer, op, 2)
             if in1 == 0:
                 echo " - jumping to " & $(in2)
                 memory.consume(in2, inputs, output)
             else:
-                memory.consume(instruction_pointer + 3, inputs, output)
+                memory.consume(pointer + 3, inputs, output)
         of LessThan:
-            let in1 = get_input(memory, instruction_pointer, op, 1)
-            let in2 = get_input(memory, instruction_pointer, op, 2)
-            let in3 = get_input(memory, instruction_pointer, op, 3)
-            if in1 < in2:
-                # echo " - set " & $(in3) & " to 1"
-                memory[in3] = 1
+            let val1 = get_param(memory, pointer, op, 1)
+            let val2 = get_param(memory, pointer, op, 2)
+            let par3 = memory[pointer + 3] # get_param(memory, pointer, op, 3)
+            if val1 < val2:
+                # echo " - set " & $(par3) & " to 1"
+                memory[par3] = 1
             else:
-                # echo " - set " & $(in3) & " to 0"
-                memory[in3] = 0
-            memory.consume(instruction_pointer + 4, inputs, output)
+                # echo " - set " & $(par3) & " to 0"
+                memory[par3] = 0
+            # echo memory
+            echo fmt"  *opLessThan* val1: {val1}, val2: {val2}, par3: {par3}"
+            memory.consume(pointer + 4, inputs, output)
         of Equals:
-            let in1 = get_input(memory, instruction_pointer, op, 1)
-            let in2 = get_input(memory, instruction_pointer, op, 2)
-            let in3 = get_input(memory, instruction_pointer, op, 3)
-            # echo " - p1 " & $(in1)
-            # echo " - p2 " & $(in2)
+            let in1 = get_param(memory, pointer, op, 1)
+            let in2 = get_param(memory, pointer, op, 2)
+            let in3 = memory[pointer + 3] # get_param(memory, pointer, op, 3)
+                                          # echo " - p1 " & $(in1)
+                                          # echo " - p2 " & $(in2)
             if in1 == in2:
                 # echo " - set " & $(in3) & " to 1"
                 memory[in3] = 1
             else:
                 # echo " - set " & $(in3) & " to 0"
                 memory[in3] = 0
-            memory.consume(instruction_pointer + 4, inputs, output)
+            memory.consume(pointer + 4, inputs, output)
         of Halt:
             output
 

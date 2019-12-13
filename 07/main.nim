@@ -1,4 +1,4 @@
-import strutils, sequtils, math, strformat
+import strutils, sequtils, math, strformat, sugar
 
 type Mode = enum Position, Immediate
 
@@ -13,7 +13,7 @@ type OpCode = enum
     Equals,
     Halt
 
-const FILENAME = "input.1.txt"
+const FILENAME = "input.txt"
 
 proc read_file(): seq[int] =
     let file = readFile(FILENAME)
@@ -68,7 +68,7 @@ proc consume(memory: var seq[int],
 
     let op = memory[pointer]
     # echo pointer
-    echo op.get_op_code
+    # echo op.get_op_code
 
     case op.get_op_code:
         of Add:
@@ -94,14 +94,14 @@ proc consume(memory: var seq[int],
                 raise newException(IOError, "No more inputs")
             else:
                 let input = inputs[0]
-                echo " - Input " & $(input)
+                # echo " - Input " & $(input)
                 memory[address] = input
                 memory.consume(pointer + 2, inputs[1 ..
                         < inputs.len], output)
         of Output:
             let in1 = get_param(memory, pointer, op, 1)
-            echo memory[pointer + 1]
-            echo " - out " & $(in1)
+            # echo memory[pointer + 1]
+            # echo " - out " & $(in1)
             # echo memory[31]
             # echo memory
             memory.consume(pointer + 2, inputs, in1)
@@ -111,13 +111,13 @@ proc consume(memory: var seq[int],
             if in1 == 0:
                 memory.consume(pointer + 3, inputs, output)
             else:
-                echo " - jumping to " & $(in2)
+                # echo " - jumping to " & $(in2)
                 memory.consume(in2, inputs, output)
         of JumpIfFalse:
             let in1 = get_param(memory, pointer, op, 1)
             let in2 = get_param(memory, pointer, op, 2)
             if in1 == 0:
-                echo " - jumping to " & $(in2)
+                # echo " - jumping to " & $(in2)
                 memory.consume(in2, inputs, output)
             else:
                 memory.consume(pointer + 3, inputs, output)
@@ -132,7 +132,7 @@ proc consume(memory: var seq[int],
                 # echo " - set " & $(par3) & " to 0"
                 memory[par3] = 0
             # echo memory
-            echo fmt"  *opLessThan* val1: {val1}, val2: {val2}, par3: {par3}"
+            # echo fmt"  *opLessThan* val1: {val1}, val2: {val2}, par3: {par3}"
             memory.consume(pointer + 4, inputs, output)
         of Equals:
             let in1 = get_param(memory, pointer, op, 1)
@@ -181,8 +181,16 @@ proc make_combinations(): seq[seq[int]] =
 
 proc main(): void =
     let combinations = make_combinations()
-    echo run_amplifiers(@[1, 0, 4, 3, 2], 0)
     # for comb in combinations:
+    # echo run_amplifiers(@[1, 0, 4, 3, 2], 0)
+    let results = combinations
+        .map(phases => run_amplifiers(phases, 0))
+
+    var max = 0
+    for r in results:
+        if r > max:
+            max = r
+    echo max
 
 main()
 

@@ -1,6 +1,9 @@
 import strutils, sequtils, math, strformat, sugar, tables
 
-type Mode = enum Position, Immediate
+type Mode = enum
+    Position,
+    Immediate,
+    Relative
 
 type OpCode = enum
     Add,
@@ -38,8 +41,7 @@ proc get_op_code(op: int): OpCode =
         of 99:
             Halt
         else:
-            echo code
-            raise newException(IOError, "failed")
+            raise newException(IOError, "Invalid code " & $(code))
 
 proc read(mem: Table[int, int], add: int): int =
     if mem.has_key(add):
@@ -52,26 +54,39 @@ proc write(mem: var Table[int, int], add: int, value: int): void =
 
 proc get_mode(op: int, pos: int): Mode =
     let mode = (floor (op.toFloat / pow(10, pos.toFloat + 1))) mod 10
-    if mode == 0:
-        Position
-    else:
-        Immediate
+    case mode:
+        of 0:
+            Position
+        of 1:
+            Immediate
+        of 2:
+            Relative
+        else:
+            raise newException(IOError, "Invalid mode " & $(mode))
 
 proc get_param(
         mem: Table[int, int],
+        relative_base: int,
         pointer: int,
         op: int,
-        pos: int
+        param_position: int
     ): int =
 
-    let mode = get_mode(op, pos)
-    let address_or_value = mem.read(pointer + pos)
+    let mode = get_mode(op, param_position)
+    # echo fmt"param_position {param_position}"
+    # echo fmt"mode {mode}"
+    let address_or_value = mem.read(pointer + param_position)
+    # echo fmt"address_or_value {address_or_value}"
 
     case mode
         of Position:
             mem.read(address_or_value)
         of Immediate:
             address_or_value
+        of Relative:
+            # echo "relative_base", relative_base
+            # echo "address_or_value", address_or_value
+            mem.read(relative_base + address_or_value)
 
 # proc set(mem: var seq[int], add: int, val: int): void =
 #     mem.read(add, va)
@@ -81,24 +96,22 @@ proc consume*(
         pointer: int,
         relative_base: int,
         inputs: seq[int],
-        output: int
-    ): int =
+        output: var seq[int]
+    ): seq[int] =
 
     let op = mem.read(pointer)
-    echo mem
-    echo "pointer ", pointer
-    echo "op ", op
-    # echo pointer
-    # echo op.get_op_code
+    let code = op.get_op_code
 
-    case op.get_op_code:
+    # echo fmt"{op} code = {code} rb = {relative_base}"
+
+    case code:
         of Add:
-            let val1 = get_param(mem, pointer, op, 1)
-            let val2 = get_param(mem, pointer, op, 2)
+            let val1 = get_param(mem, relative_base, pointer, op, 1)
+            let val2 = get_param(mem, relative_base, pointer, op, 2)
             let address_3 = mem.read(pointer + 3)
             # echo address_3
             mem.write(address_3, val1 + val2)
-            # echo fmt"  *opMul* val1: {val1}, val2: {val2}, par3: {address_3}"
+            # echo fmt"Add val1: {val1}, val2: {val2}, par3: {address_3}"
             # echo mem
             mem.consume(
                 pointer + 4,
@@ -107,8 +120,8 @@ proc consume*(
                 output
             )
         of Mul:
-            let val1 = get_param(mem, pointer, op, 1)
-            let val2 = get_param(mem, pointer, op, 2)
+            let val1 = get_param(mem, relative_base, pointer, op, 1)
+            let val2 = get_param(mem, relative_base, pointer, op, 2)
             let address_3 = mem.read(pointer + 3)
             mem.write(address_3, val1 * val2)
             # echo fmt"  *opMul* val1: {val1}, val2: {val2}, par3: {address_3}"
@@ -135,20 +148,20 @@ proc consume*(
                     output
                 )
         of Output:
-            let in1 = get_param(mem, pointer, op, 1)
-            # echo mem.read(pointer + 1)
-            # echo " - out " & $(in1)
-            # echo mem.read(31)
             # echo mem
+            let in1 = get_param(mem, relative_base, pointer, op, 1)
+            # echo fmt" - out {in1}"
+            output.add(in1)
+            # output
             mem.consume(
                 pointer + 2,
                 relative_base,
                 inputs,
-                in1
+                output
             )
         of JumpIfTrue:
-            let in1 = get_param(mem, pointer, op, 1)
-            let in2 = get_param(mem, pointer, op, 2)
+            let in1 = get_param(mem, relative_base, pointer, op, 1)
+            let in2 = get_param(mem, relative_base, pointer, op, 2)
             let next_pointer =
                 if in1 == 0:
                     pointer + 3
@@ -162,8 +175,8 @@ proc consume*(
                 output
             )
         of JumpIfFalse:
-            let in1 = get_param(mem, pointer, op, 1)
-            let in2 = get_param(mem, pointer, op, 2)
+            let in1 = get_param(mem, relative_base, pointer, op, 1)
+            let in2 = get_param(mem, relative_base, pointer, op, 2)
             let next_pointer =
                 if in1 == 0:
                     # echo " - jumping to " & $(in2)
@@ -177,9 +190,9 @@ proc consume*(
                 output
             )
         of LessThan:
-            let val1 = get_param(mem, pointer, op, 1)
-            let val2 = get_param(mem, pointer, op, 2)
-            let par3 = mem.read(pointer + 3) # get_param(mem, pointer, op, 3)
+            let val1 = get_param(mem, relative_base, pointer, op, 1)
+            let val2 = get_param(mem, relative_base, pointer, op, 2)
+            let par3 = mem.read(pointer + 3) # get_param(mem, relative_base, pointer, op, 3)
             if val1 < val2:
                 # echo " - set " & $(par3) & " to 1"
                 mem.write(par3, 1)
@@ -195,10 +208,10 @@ proc consume*(
                 output
             )
         of Equals:
-            let in1 = get_param(mem, pointer, op, 1)
-            let in2 = get_param(mem, pointer, op, 2)
+            let in1 = get_param(mem, relative_base, pointer, op, 1)
+            let in2 = get_param(mem, relative_base, pointer, op, 2)
             let in3 = mem.read(pointer + 3)
-             # get_param(mem, pointer, op, 3)
+             # get_param(mem, relative_base, pointer, op, 3)
                                           # echo " - p1 " & $(in1)
                                           # echo " - p2 " & $(in2)
             if in1 == in2:
@@ -214,9 +227,10 @@ proc consume*(
                 output
             )
         of AdjustRelativeBase:
-            let in1 = get_param(mem, pointer, op, 1)
+            let in1 = get_param(mem, relative_base, pointer, op, 1)
+            # echo fmt"AdjustRelativeBase in1: {in1}, {relative_base + in1}"
             mem.consume(
-                pointer + 1,
+                pointer + 2,
                 relative_base + in1,
                 inputs,
                 output

@@ -150,7 +150,7 @@ proc consume*(
         of Output:
             # echo mem
             let in1 = get_param(mem, relative_base, pointer, op, 1)
-            # echo fmt" - out {in1}"
+            echo fmt" - out {in1}"
             output.add(in1)
             # output
             mem.consume(

@@ -17,7 +17,7 @@ type OpCode = enum
     AdjustRelativeBase,
     Halt
 
-proc get_op_code(op: int): OpCode =
+proc get_op_code(op: int64): OpCode =
     let code = op mod 100
     case code:
         of 1:
@@ -43,17 +43,17 @@ proc get_op_code(op: int): OpCode =
         else:
             raise newException(IOError, "Invalid code " & $(code))
 
-proc read(mem: Table[int, int], add: int): int =
+proc read(mem: Table[int64, int64], add: int64): int64 =
     if mem.has_key(add):
         mem[add]
     else:
         0
 
-proc write(mem: var Table[int, int], add: int, value: int): void =
+proc write(mem: var Table[int64, int64], add: int64, value: int64): void =
     mem[add] = value
 
-proc get_mode(op: int, pos: int): Mode =
-    let mode = (floor (op.toFloat / pow(10, pos.toFloat + 1))) mod 10
+proc get_mode(op: int64, pos: int64): Mode =
+    let mode = (floor (op.toBiggestFloat / pow(10, pos.toBiggestFloat + 1))) mod 10
     case mode:
         of 0:
             Position
@@ -65,12 +65,12 @@ proc get_mode(op: int, pos: int): Mode =
             raise newException(IOError, "Invalid mode " & $(mode))
 
 proc get_param(
-        mem: Table[int, int],
-        relative_base: int,
-        pointer: int,
-        op: int,
-        param_position: int
-    ): int =
+        mem: Table[int64, int64],
+        relative_base: int64,
+        pointer: int64,
+        op: int64,
+        param_position: int64
+    ): int64 =
 
     let mode = get_mode(op, param_position)
     # echo fmt"param_position {param_position}"
@@ -92,12 +92,12 @@ proc get_param(
 #     mem.read(add, va)
 
 proc consume*(
-        mem: var Table[int, int],
-        pointer: int,
-        relative_base: int,
-        inputs: seq[int],
-        output: var seq[int]
-    ): seq[int] =
+        mem: var Table[int64, int64],
+        pointer: int64,
+        relative_base: int64,
+        inputs: seq[int64],
+        output: var seq[int64]
+    ): seq[int64] =
 
     let op = mem.read(pointer)
     let code = op.get_op_code

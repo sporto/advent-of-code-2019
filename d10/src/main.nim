@@ -1,6 +1,6 @@
 import strutils, sequtils, unicode, sugar, neo, math, options
 
-const FILENAME = "example1.txt"
+const FILENAME = "input.txt"
 
 type
     Coor = tuple[x: int, y: int]
@@ -71,6 +71,15 @@ proc main(): void =
         count(coor, matrix)
     )
 
-    echo count_matrix
+    var max = 0
+    var coor = (x:0, y:0)
+    for t, v in count_matrix:
+        let (row, col) = t
+        if v > max:
+            max = v
+            coor = (x:col, y:row)
+
+    echo max
+    echo coor
 
 main()

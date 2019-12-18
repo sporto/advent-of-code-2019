@@ -1,4 +1,4 @@
-import strutils, sequtils, unicode, sugar, neo, math
+import strutils, sequtils, unicode, sugar, neo, math, options
 
 const FILENAME = "example1.txt"
 
@@ -29,23 +29,24 @@ proc map_matrix[A,B](matrix: Matrix[A], target: var Matrix[B], fn: (coor: Coor, 
         let new_value = fn(coor, v)
         target[row, col] = new_value
 
-proc get_angle(origin: Coor, target: Coor): float =
+proc get_angle(origin: Coor, target: Coor): Option[float] =
     if origin == target:
-        0.0
+        none(float)
     else:
         let delta_y = target.y - origin.y
         let delta_x = target.x - origin.x
-        arctan2(delta_y.toFloat, delta_x.toFloat)
+        let angle = arctan2(delta_y.toFloat, delta_x.toFloat).radToDeg
+        some(angle)
 
-proc get_angles_matrix(origin: Coor, matrix: Matrix[bool]): Matrix[float] =
+proc get_angles_matrix(origin: Coor, matrix: Matrix[bool]): Matrix[Option[float]] =
     let rows = matrix.column(0).len
     let cols = matrix.row(0).len
-    var result_matrix = constantMatrix(rows, cols, 0.0)
-    matrix.map_matrix(result_matrix, proc (coor: Coor, v: bool): float =
+    var result_matrix = constantMatrix(rows, cols, none(float))
+    matrix.map_matrix(result_matrix, proc (coor: Coor, v: bool): Option[float] =
         if v:
             get_angle(origin, coor)
         else:
-            0.0
+            none(float)
     )
     result_matrix
 
@@ -56,7 +57,7 @@ proc count(origin: Coor, matrix: Matrix[bool]): int =
             .asVector
             .data
             .deduplicate
-            .filterIt(it != 0)
+            .filterIt(it.isSome)
             .len
     else:
         0

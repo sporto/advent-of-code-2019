@@ -1,12 +1,13 @@
 module Main where
 
-import Prelude
+import Data.Foldable
+import Data.Int
+import Data.Tuple
+import Debug.Trace
 import Effect (Effect)
 import Effect.Console (logShow)
-import Debug.Trace
-import Data.Foldable
 import Math
-import Data.Int
+import Prelude
 
 type Pos = {
     x :: Int,
@@ -122,6 +123,20 @@ tick iter moons =
             # spy "newMoons"
             # tick (iter + 1)
 
+tickUntilSame :: Array Moon -> Int -> Array Moon -> Tuple Int (Array Moon)
+tickUntilSame initialState iter moons =
+    if iter /= 0 && initialState == moons then
+        Tuple iter moons
+    else
+        let
+            newMoons =
+                moons
+                    # applyGravities
+                    # applyVelocities
+        in
+            newMoons
+            # tickUntilSame initialState ((iter) + 1)
+
 newMoon :: Int -> Int -> Int -> Moon
 newMoon x y z =
     {
@@ -155,8 +170,8 @@ moonsExample2 =
         newMoon 9 (-8) (-3)
     ]
 
-moons :: Array Moon
-moons =
+moonsInput :: Array Moon
+moonsInput =
     [
         newMoon (-6) (-5) (-8),
         newMoon 0 (-3) (-13),
@@ -183,10 +198,21 @@ totalEnergy moons =
         # map totalEnergyForMoon
         # foldl (+) 0.0
 
-run :: Number
-run =
-    moons # tick 0 # totalEnergy
+-- run :: Number
+-- run =
+--     moonsExample1 # tick 0 # totalEnergy
+
+run2 :: Int
+run2 =
+    let
+        moons =
+            moonsExample2
+        Tuple iter _ =
+            moons # tickUntilSame moons 0
+    in
+        iter
+
 
 main :: Effect Unit
 main = do
-    run # logShow
+    run2 # logShow

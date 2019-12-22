@@ -104,10 +104,12 @@ applyVelocities :: Array Moon -> Array Moon
 applyVelocities moons =
     moons # map applyVelocity
 
+steps =
+    1000
 
 tick :: Int -> Array Moon -> Array Moon
 tick iter moons =
-    if iter >= 10 then
+    if iter >= steps then
         moons
     else
         let
@@ -135,13 +137,31 @@ newMoon x y z =
         }
     }
 
-moons :: Array Moon
-moons =
+moonsExample1 :: Array Moon
+moonsExample1 =
     [
         newMoon (-1) 0 2,
         newMoon 2 (-10) (-7),
         newMoon 4 (-8) 8,
         newMoon 3 5 (-1)
+    ]
+
+moonsExample2 :: Array Moon
+moonsExample2 =
+    [
+        newMoon (-8) (-10) 0,
+        newMoon 5 (5) (10),
+        newMoon 2 (-7) 3,
+        newMoon 9 (-8) (-3)
+    ]
+
+moons :: Array Moon
+moons =
+    [
+        newMoon (-6) (-5) (-8),
+        newMoon 0 (-3) (-13),
+        newMoon (-15) (10) (-11),
+        newMoon (-3) (-8) (3)
     ]
 
 potentialEnergy :: Moon -> Number

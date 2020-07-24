@@ -1,24 +1,23 @@
 import gleam/list
 import gleam/result
+import gleam/io
 
 pub fn hello_world() {
 	"Hello, from app!"
 }
 
-enum OpCode {
+type OpCode {
 	Add
 	Multiply
 	Halt
 }
 
-struct Triple {
-  p1: Int
-  p2: Int
-  p3: Int
-}
-
-fn program() {
-	[1,9,10,3,2,3,11,0,99,30,40,50]
+type Triple {
+	Triple(
+		p1: Int,
+		p2: Int,
+		p3: Int,
+	)
 }
 
 fn num_to_op_code(num: Int) {
@@ -34,31 +33,27 @@ fn get_op_code(mem: List(Int), pointer: Int) -> Result(OpCode, Nil) {
 		|> result.map(_, num_to_op_code)
 }
 
-fn get_value(mem, pointer, pos) -> Result(Int, Nil) {
-	list.at(mem, pointer + pos)
+fn get_value(mem, pointer, offset)  -> Result(Int, Nil) {
+	list.at(mem, pointer + offset)
+}
+
+// Get the position at the index, then get the value for the position
+fn get_position_then_value(mem, pointer, offset) -> Result(Int, Nil) {
+	get_value(mem, pointer, offset)
 		|> result.then(_, fn(address) { list.at(mem, address) })
 }
 
 fn put(mem, address, val) {
-	mem
-}
+	let left = list.take(mem, address)
+	let right = list.drop(mem, address + 1)
 
-fn param1(mem, pointer) -> Result(Int, Nil) {
-	get_value(mem, pointer, 1)
-}
-
-fn param2(mem, pointer) -> Result(Int, Nil) {
-	get_value(mem, pointer, 1)
-}
-
-fn param3(mem, pointer) -> Result(Int, Nil) {
-	get_value(mem, pointer, 1)
+	list.flatten([left, [val], right])
 }
 
 fn params3(mem, pointer) {
-	let p1_res = param1(mem, pointer)
-	let p2_res = param2(mem, pointer)
-	let p3_res = param3(mem, pointer)
+	let p1_res = get_position_then_value(mem, pointer, 1)
+	let p2_res = get_position_then_value(mem, pointer, 2)
+	let p3_res = get_value(mem, pointer, 3)
 	case p1_res {
 		Ok(p1) ->
 			case p2_res {
@@ -77,32 +72,53 @@ fn params3(mem, pointer) {
 	}
 }
 
-fn add(mem, pointer) -> Int {
-	let params_result = params3(mem, pointer)
-
-	case params_result {
-		Ok(params) ->
-			{
-				let Triple(p1, p2, p3) = params
-				let next_mem = put(mem, p3, p1 + p2)
-				consume(next_mem, pointer + 3)
-			}
-		_ ->
-			-1
-	}
-}
-
-fn consume(mem: List(Int), pointer: Int) -> Int {
+fn consume(mem: List(Int), pointer: Int) -> List(Int) {
+	io.debug(mem)
+	io.debug(pointer)
 	case get_op_code(mem, pointer) {
 		Ok(op_code) ->
 			case op_code {
-				Add -> add(mem, pointer)
-				Multiply ->
-					2
-				Halt ->
-					3
+				Add -> {
+					io.println("Add")
+					let params = params3(mem, pointer)
+
+					case params {
+						Ok(params) ->
+							{
+								let Triple(p1, p2, p3) = params
+								io.debug(params)
+								let next_mem = put(mem, p3, p1 + p2)
+								consume(next_mem, pointer + 4)
+							}
+						_ ->
+							mem
+					}
+				}
+				Multiply -> {
+					io.println("Multiply")
+					let params = params3(mem, pointer)
+
+					case params {
+						Ok(params) ->
+							{
+								let Triple(p1, p2, p3) = params
+								let next_mem = put(mem, p3, p1 * p2)
+								consume(next_mem, pointer + 4)
+							}
+						_ ->
+							mem
+					}
+				}
+				Halt -> {
+					io.println("Halt")
+					mem
+				}
 			}
 		_ ->
-			-1
+			mem
 	}
+}
+
+pub fn main(input: List(Int)) {
+	consume(input, 0)
 }

@@ -123,9 +123,9 @@ tick iter moons =
             # spy "newMoons"
             # tick (iter + 1)
 
-tickUntilSame :: Array Moon -> Int -> Array Moon -> Tuple Int (Array Moon)
-tickUntilSame initialState iter moons =
-    if iter /= 0 && initialState == moons then
+tickUntilSame :: Array Moon -> (Array Moon -> Array Moon -> Boolean) -> Int -> Array Moon -> Tuple Int (Array Moon)
+tickUntilSame initialState compare iter moons =
+    if iter /= 0 && compare initialState moons then
         Tuple iter moons
     else
         let
@@ -135,7 +135,7 @@ tickUntilSame initialState iter moons =
                     # applyVelocities
         in
             newMoons
-            # tickUntilSame initialState ((iter) + 1)
+            # tickUntilSame initialState compare ((iter) + 1)
 
 newMoon :: Int -> Int -> Int -> Moon
 newMoon x y z =
@@ -202,15 +202,67 @@ totalEnergy moons =
 -- run =
 --     moonsExample1 # tick 0 # totalEnergy
 
-run2 :: Int
+comparePosX :: Array Moon -> Array Moon -> Boolean
+comparePosX a b =
+    map getX a == map getX b
+
+comparePosY :: Array Moon -> Array Moon -> Boolean
+comparePosY a b =
+    map getY a == map getY b
+
+comparePosZ :: Array Moon -> Array Moon -> Boolean
+comparePosZ a b =
+    map getZ a == map getZ b
+
+compareVelX :: Array Moon -> Array Moon -> Boolean
+compareVelX a b =
+    map getVelX a == map getVelX b
+
+compareVelY :: Array Moon -> Array Moon -> Boolean
+compareVelY a b =
+    map getVelY a == map getVelY b
+
+compareVelZ :: Array Moon -> Array Moon -> Boolean
+compareVelZ a b =
+    map getVelZ a == map getVelZ b
+
+gcd :: Number -> Number -> Number
+gcd a b =
+    if a == 0.0 then
+        b
+    else
+        gcd (b % a) a
+
+lcm :: Number -> Number -> Number
+lcm a b =
+     (a * b) / gcd a b
+
+run2 :: Number
 run2 =
     let
         moons =
-            moonsExample2
-        Tuple iter _ =
-            moons # tickUntilSame moons 0
+            moonsExample1
+        Tuple iterPosX _ =
+            moons # tickUntilSame moons comparePosX 0
+        Tuple iterPosY _ =
+            moons # tickUntilSame moons comparePosY 0
+        Tuple iterPosZ _ =
+            moons # tickUntilSame moons comparePosZ 0
+        Tuple iterVelX _ =
+            moons # tickUntilSame moons compareVelX 0
+        Tuple iterVelY _ =
+            moons # tickUntilSame moons compareVelY 0
+        Tuple iterVelZ _ =
+            moons # tickUntilSame moons compareVelZ 0
     in
-        iter
+        [
+            toNumber iterPosX,
+            toNumber iterPosY,
+            toNumber iterPosZ,
+            toNumber iterVelX,
+            toNumber iterVelY,
+            toNumber iterVelZ
+        ] # foldl lcm 1.0
 
 
 main :: Effect Unit

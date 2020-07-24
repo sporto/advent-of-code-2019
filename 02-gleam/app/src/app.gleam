@@ -51,42 +51,29 @@ fn put(mem, address, val) {
 }
 
 fn params3(mem, pointer) {
-	let p1_res = get_position_then_value(mem, pointer, 1)
-	let p2_res = get_position_then_value(mem, pointer, 2)
-	let p3_res = get_value(mem, pointer, 3)
-	case p1_res {
-		Ok(p1) ->
-			case p2_res {
-				Ok(p2) ->
-					case p3_res {
-						Ok(p3) ->
-							Ok(Triple(p1, p2, p3))
-						_ ->
-							Error(Nil)
-					}
-				_ ->
-					Error(Nil)
-			}
-		_ ->
-			Error(Nil)
-	}
+	try p1 = get_position_then_value(mem, pointer, 1)
+	try p2 = get_position_then_value(mem, pointer, 2)
+	try p3 = get_value(mem, pointer, 3)
+
+	Ok(Triple(p1, p2, p3))
 }
 
 fn consume(mem: List(Int), pointer: Int) -> List(Int) {
-	io.debug(mem)
-	io.debug(pointer)
+	// io.debug(mem)
+	// io.debug(pointer)
+
 	case get_op_code(mem, pointer) {
 		Ok(op_code) ->
 			case op_code {
 				Add -> {
-					io.println("Add")
+					// io.println("Add")
 					let params = params3(mem, pointer)
 
 					case params {
 						Ok(params) ->
 							{
 								let Triple(p1, p2, p3) = params
-								io.debug(params)
+								// io.debug(params)
 								let next_mem = put(mem, p3, p1 + p2)
 								consume(next_mem, pointer + 4)
 							}
@@ -95,7 +82,7 @@ fn consume(mem: List(Int), pointer: Int) -> List(Int) {
 					}
 				}
 				Multiply -> {
-					io.println("Multiply")
+					// io.println("Multiply")
 					let params = params3(mem, pointer)
 
 					case params {
@@ -110,7 +97,7 @@ fn consume(mem: List(Int), pointer: Int) -> List(Int) {
 					}
 				}
 				Halt -> {
-					io.println("Halt")
+					// io.println("Halt")
 					mem
 				}
 			}

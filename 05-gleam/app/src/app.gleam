@@ -7,11 +7,16 @@ pub fn hello_world() {
 }
 
 type OpCode {
-	Add
-	Multiply
-	Store
+	Add(ParameterMode, ParameterMode, ParameterMode)
+	Multiply(ParameterMode, ParameterMode, ParameterMode)
+	Store(ParameterMode)
 	Halt
-	Output
+	Output(ParameterMode)
+}
+
+type ParameterMode {
+	Position
+	Value
 }
 
 type Triple {
@@ -24,11 +29,11 @@ type Triple {
 }
 
 fn num_to_op_code(num: Int) {
-	case num {
-		1 -> Add
-		2 -> Multiply
-		3 -> Store
-		4 -> Output
+	case num % 100 {
+		1 -> Add(Position, Position, Value)
+		2 -> Multiply(Position, Position, Value)
+		3 -> Store(Position)
+		4 -> Output(Position)
 		_ -> Halt
 	}
 }
@@ -38,14 +43,16 @@ fn get_op_code(mem: List(Int), pointer: Int) -> Result(OpCode, Nil) {
 		|> result.map(_, num_to_op_code)
 }
 
-fn get_value(mem, pointer, address_offset)  -> Result(Int, Nil) {
-	list.at(mem, pointer + address_offset)
-}
+fn get_value(mem, pointer pointer: Int, offset address_offset: Int, mode mode: ParameterMode)  -> Result(Int, Nil) {
+	let first = list.at(mem, pointer + address_offset)
 
-// Get the position at the index, then get the value for the position
-fn get_position_then_value(mem, pointer, address_offset) -> Result(Int, Nil) {
-	get_value(mem, pointer, address_offset)
-		|> result.then(_, fn(address) { list.at(mem, address) })
+	case mode {
+		Value ->
+			first
+		Position ->
+			first
+			|> result.then(_, fn(address) { list.at(mem, address) })
+	}
 }
 
 fn put(mem, address, val) {
@@ -55,10 +62,10 @@ fn put(mem, address, val) {
 	list.flatten([left, [val], right])
 }
 
-fn params3(mem, pointer) {
-	try p1 = get_position_then_value(mem, pointer, 1)
-	try p2 = get_position_then_value(mem, pointer, 2)
-	try p3 = get_value(mem, pointer, 3)
+fn params3(mem, pointer, m1, m2, m3) {
+	try p1 = get_value(mem, pointer, 1, mode: m1)
+	try p2 = get_value(mem, pointer, 2, mode: m2)
+	try p3 = get_value(mem, pointer, 3, mode: m3)
 
 	Ok(Triple(p1, p2, p3, pointer + 4))
 }
@@ -70,9 +77,9 @@ fn consume(mem: List(Int), input input: Int, output output: Int, pointer pointer
 	case get_op_code(mem, pointer) {
 		Ok(op_code) ->
 			case op_code {
-				Add -> {
+				Add(m1, m2, m3) -> {
 					// io.println("Add")
-					params3(mem, pointer)
+					params3(mem, pointer, m1, m2, m3)
 						|> result.map(fn(params: Triple) {
 							let next_mem = put(mem, params.p3, params.p1 + params.p2)
 							consume(
@@ -84,9 +91,9 @@ fn consume(mem: List(Int), input input: Int, output output: Int, pointer pointer
 						})
 						|> result.unwrap(tuple(mem, input))
 				}
-				Multiply -> {
+				Multiply(m1, m2, m3) -> {
 					// io.println("Multiply")
-					let params = params3(mem, pointer)
+					let params = params3(mem, pointer, m1, m2, m3)
 
 					case params {
 						Ok(params) ->
@@ -103,8 +110,13 @@ fn consume(mem: List(Int), input input: Int, output output: Int, pointer pointer
 							tuple(mem,input)
 					}
 				}
-				Store -> {
-					let address = get_value(mem, pointer, 1)
+				Store(m1) -> {
+					let address = get_value(
+						mem,
+						pointer: pointer,
+						offset: 1,
+						mode: m1,
+					)
 
 					address
 					|> result.map(fn(address: Int) {
@@ -118,8 +130,8 @@ fn consume(mem: List(Int), input input: Int, output output: Int, pointer pointer
 					})
 					|> result.unwrap(tuple(mem, input))
 				}
-				Output -> {
-					get_position_then_value(mem, pointer, 1)
+				Output(m1) -> {
+					get_value(mem, pointer, 1, mode: m1)
 					|> result.map(fn(value:Int) {
 						io.debug(value)
 						consume(

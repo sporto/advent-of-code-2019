@@ -17,6 +17,7 @@ type Triple {
 		p1: Int,
 		p2: Int,
 		p3: Int,
+		next_pointer: Int,
 	)
 }
 
@@ -33,13 +34,13 @@ fn get_op_code(mem: List(Int), pointer: Int) -> Result(OpCode, Nil) {
 		|> result.map(_, num_to_op_code)
 }
 
-fn get_value(mem, pointer, offset)  -> Result(Int, Nil) {
-	list.at(mem, pointer + offset)
+fn get_value(mem, pointer, address_offset)  -> Result(Int, Nil) {
+	list.at(mem, pointer + address_offset)
 }
 
 // Get the position at the index, then get the value for the position
-fn get_position_then_value(mem, pointer, offset) -> Result(Int, Nil) {
-	get_value(mem, pointer, offset)
+fn get_position_then_value(mem, pointer, address_offset) -> Result(Int, Nil) {
+	get_value(mem, pointer, address_offset)
 		|> result.then(_, fn(address) { list.at(mem, address) })
 }
 
@@ -55,7 +56,7 @@ fn params3(mem, pointer) {
 	try p2 = get_position_then_value(mem, pointer, 2)
 	try p3 = get_value(mem, pointer, 3)
 
-	Ok(Triple(p1, p2, p3))
+	Ok(Triple(p1, p2, p3, pointer + 4))
 }
 
 fn consume(mem: List(Int), pointer: Int) -> List(Int) {
@@ -67,19 +68,12 @@ fn consume(mem: List(Int), pointer: Int) -> List(Int) {
 			case op_code {
 				Add -> {
 					// io.println("Add")
-					let params = params3(mem, pointer)
-
-					case params {
-						Ok(params) ->
-							{
-								let Triple(p1, p2, p3) = params
-								// io.debug(params)
-								let next_mem = put(mem, p3, p1 + p2)
-								consume(next_mem, pointer + 4)
-							}
-						_ ->
-							mem
-					}
+					params3(mem, pointer)
+						|> result.map(fn(params: Triple) {
+							let next_mem = put(mem, params.p3, params.p1 + params.p2)
+							consume(next_mem, params.next_pointer)
+						})
+						|> result.unwrap(mem)
 				}
 				Multiply -> {
 					// io.println("Multiply")
@@ -88,9 +82,8 @@ fn consume(mem: List(Int), pointer: Int) -> List(Int) {
 					case params {
 						Ok(params) ->
 							{
-								let Triple(p1, p2, p3) = params
-								let next_mem = put(mem, p3, p1 * p2)
-								consume(next_mem, pointer + 4)
+								let next_mem = put(mem, params.p3, params.p1 * params.p2)
+								consume(next_mem, params.next_pointer)
 							}
 						_ ->
 							mem

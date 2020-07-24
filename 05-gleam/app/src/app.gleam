@@ -1,12 +1,14 @@
 import gleam/list
 import gleam/result
 import gleam/io
+import gleam/string
+import gleam/int
 
 pub fn hello_world() {
 	"Hello, from app!"
 }
 
-type OpCode {
+pub type OpCode {
 	Add(ParameterMode, ParameterMode, ParameterMode)
 	Multiply(ParameterMode, ParameterMode, ParameterMode)
 	Store(ParameterMode)
@@ -14,26 +16,57 @@ type OpCode {
 	Output(ParameterMode)
 }
 
-type ParameterMode {
+pub type ParameterMode {
 	Position
 	Value
 }
 
-type Triple {
-	Triple(
-		p1: Int,
-		p2: Int,
-		p3: Int,
+type One {
+	One(
+		val1: Int,
 		next_pointer: Int,
 	)
 }
 
-fn num_to_op_code(num: Int) {
+type Two {
+	Two(
+		val1: Int,
+		val2: Int,
+		next_pointer: Int,
+	)
+}
+
+type Three {
+	Three(
+		val1: Int,
+		val2: Int,
+		val3: Int,
+		next_pointer: Int,
+	)
+}
+
+pub fn mode_for(num: Int, position: Int) -> ParameterMode {
+	let n = num
+		|> int.to_string
+		|> string.drop_right(position + 1)
+
+	case string.ends_with(n, "1") {
+		True ->
+			Value
+		False ->
+			Position
+	}
+}
+
+pub fn num_to_op_code(num: Int) {
+	let m1 = mode_for(num,1)
+	let m2 = mode_for(num,2)
+	let m3 = mode_for(num,3)
 	case num % 100 {
-		1 -> Add(Position, Position, Value)
-		2 -> Multiply(Position, Position, Value)
-		3 -> Store(Position)
-		4 -> Output(Position)
+		1 -> Add(m1, m2, m3)
+		2 -> Multiply(m1, m2, m3)
+		3 -> Store(m1)
+		4 -> Output(m1)
 		_ -> Halt
 	}
 }
@@ -62,12 +95,25 @@ fn put(mem, address, val) {
 	list.flatten([left, [val], right])
 }
 
+fn params1(mem, pointer, m1) {
+	try p1 = get_value(mem, pointer, 1, mode: m1)
+
+	Ok(One(p1, pointer + 2))
+}
+
+fn params2(mem, pointer, m1, m2) {
+	try p1 = get_value(mem, pointer, 1, mode: m1)
+	try p2 = get_value(mem, pointer, 2, mode: m2)
+
+	Ok(Two(p1, p2, pointer + 3))
+}
+
 fn params3(mem, pointer, m1, m2, m3) {
 	try p1 = get_value(mem, pointer, 1, mode: m1)
 	try p2 = get_value(mem, pointer, 2, mode: m2)
 	try p3 = get_value(mem, pointer, 3, mode: m3)
 
-	Ok(Triple(p1, p2, p3, pointer + 4))
+	Ok(Three(p1, p2, p3, pointer + 4))
 }
 
 fn consume(mem: List(Int), input input: Int, output output: Int, pointer pointer: Int) -> tuple(List(Int), Int) {
@@ -80,8 +126,8 @@ fn consume(mem: List(Int), input input: Int, output output: Int, pointer pointer
 				Add(m1, m2, m3) -> {
 					// io.println("Add")
 					params3(mem, pointer, m1, m2, m3)
-						|> result.map(fn(params: Triple) {
-							let next_mem = put(mem, params.p3, params.p1 + params.p2)
+						|> result.map(fn(params: Three) {
+							let next_mem = put(mem, params.val3, params.val1 + params.val2)
 							consume(
 								next_mem,
 								input: input,
@@ -98,7 +144,7 @@ fn consume(mem: List(Int), input input: Int, output output: Int, pointer pointer
 					case params {
 						Ok(params) ->
 							{
-								let next_mem = put(mem, params.p3, params.p1 * params.p2)
+								let next_mem = put(mem, params.val3, params.val1 * params.val2)
 								consume(
 									next_mem,
 									input: input,
@@ -111,37 +157,29 @@ fn consume(mem: List(Int), input input: Int, output output: Int, pointer pointer
 					}
 				}
 				Store(m1) -> {
-					let address = get_value(
-						mem,
-						pointer: pointer,
-						offset: 1,
-						mode: m1,
-					)
-
-					address
-					|> result.map(fn(address: Int) {
-						let next_mem = put(mem, address, input)
-						consume(
-							next_mem,
-							input: input,
-							output: output,
-							pointer: pointer + 2
-						)
-					})
-					|> result.unwrap(tuple(mem, input))
+					params1(mem, pointer, m1)
+						|> result.map(fn(one: One) {
+							let next_mem = put(mem, one.val1, input)
+							consume(
+								next_mem,
+								input: input,
+								output: output,
+								pointer: one.next_pointer
+							)
+						})
+						|> result.unwrap(tuple(mem, input))
 				}
 				Output(m1) -> {
-					get_value(mem, pointer, 1, mode: m1)
-					|> result.map(fn(value:Int) {
-						io.debug(value)
-						consume(
-							mem,
-							input: input,
-							output: value,
-							pointer: pointer + 2
-						)
-					})
-					|> result.unwrap(tuple(mem, input))
+					params1(mem, pointer, m1)
+						|> result.map(fn(one: One) {
+							consume(
+								mem,
+								input: input,
+								output: one.val1,
+								pointer: one.next_pointer
+							)
+						})
+						|> result.unwrap(tuple(mem, input))
 				}
 				Halt -> {
 					// io.println("Halt")

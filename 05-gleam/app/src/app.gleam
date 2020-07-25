@@ -8,6 +8,10 @@ pub type OpCode {
 	Add(ParameterMode, ParameterMode, ParameterMode)
 	Multiply(ParameterMode, ParameterMode, ParameterMode)
 	Store(ParameterMode)
+	JumpIfTrue(ParameterMode, ParameterMode)
+	JumpIfFalse(ParameterMode, ParameterMode)
+	LessThan(ParameterMode, ParameterMode, ParameterMode)
+	Equal(ParameterMode, ParameterMode, ParameterMode)
 	Halt
 	Output(ParameterMode)
 }
@@ -72,6 +76,10 @@ pub fn num_to_op_code(num: Int) {
 		2 -> Multiply(m1, m2, Value)
 		3 -> Store(Value)
 		4 -> Output(m1)
+		5 -> JumpIfTrue(m1, m2)
+		6 -> JumpIfFalse(m1, m2)
+		7 -> LessThan(m1, m2, Value)
+		8 -> Equal(m1, m2, Value)
 		_ -> Halt
 	}
 }
@@ -191,6 +199,78 @@ fn consume(state: State) -> State {
 								pointer: one.next_pointer,
 								input: state.input,
 								outputs: next_outputs,
+							)
+							consume(next_state)
+						})
+						|> result.unwrap(state)
+				}
+				JumpIfTrue(m1, m2) -> {
+					params2(state, m1, m2)
+						|> result.map(fn(two: Two) {
+							let next_pointer = case two.val1 {
+								0 -> two.next_pointer
+								_ -> two.val2
+							}
+
+							let next_state = State(
+								mem : state.mem,
+								pointer: next_pointer,
+								input: state.input,
+								outputs: state.outputs,
+							)
+							consume(next_state)
+						})
+						|> result.unwrap(state)
+				}
+				JumpIfFalse(m1, m2) -> {
+					params2(state, m1, m2)
+						|> result.map(fn(two: Two) {
+							let next_pointer = case two.val1 {
+								0 -> two.val2
+								_ -> two.next_pointer
+							}
+
+							let next_state = State(
+								mem : state.mem,
+								pointer: next_pointer,
+								input: state.input,
+								outputs: state.outputs,
+							)
+							consume(next_state)
+						})
+						|> result.unwrap(state)
+				}
+				LessThan(m1, m2, m3) -> {
+					params3(state, m1, m2, m3)
+						|> result.map(fn(three: Three) {
+							let value = case three.val1 < three.val2 {
+								True -> 1
+								False -> 0
+							}
+							let next_mem = put(state.mem, three.val3, value)
+							let next_state = State(
+								mem : next_mem,
+								pointer: three.next_pointer,
+								input: state.input,
+								outputs: state.outputs,
+							)
+							consume(next_state)
+						})
+						|> result.unwrap(state)
+				}
+				Equal(m1, m2, m3) -> {
+					params3(state, m1, m2, m3)
+						|> result.map(fn(three: Three) {
+							let value = case three.val1 == three.val2 {
+								True -> 1
+								False -> 0
+							}
+							let next_mem = put(state.mem, three.val3, value)
+							let next_state = State(
+								mem : next_mem,
+								pointer: three.next_pointer,
+								input: state.input,
+								outputs: state.outputs,
 							)
 							consume(next_state)
 						})

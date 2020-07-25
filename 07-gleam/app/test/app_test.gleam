@@ -195,3 +195,15 @@ pub fn permutations_test() {
 		[3, 2, 1]
 	])
 }
+
+pub fn combinations_test() {
+	app.combinations(3)
+	|> should.equal([
+		[0, 1, 2],
+		[1, 0, 2],
+		[1, 2, 0],
+		[0, 2, 1],
+		[2, 0, 1],
+		[2, 1, 0]
+	])
+}

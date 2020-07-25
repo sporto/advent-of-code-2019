@@ -342,11 +342,8 @@ pub fn permutations(lst: List(Int)) -> List(List(Int)) {
 		_ -> [lst]
 	}
 }
-//   match lst with
-//   | hd::tl -> List.concat (List.map (interleave hd) (permutations tl))
-//   | _ -> [lst]
 
-// pub fn combinations(n: Int) -> List(List(Int)) {
-// 	list.range(0, n)
-// 		|> permutations
-// }
+pub fn combinations(n: Int) -> List(List(Int)) {
+	list.range(0, n)
+		|> permutations
+}

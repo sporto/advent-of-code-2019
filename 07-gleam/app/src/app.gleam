@@ -137,7 +137,7 @@ fn consume(state: State) -> State {
 		Ok(op_code) ->
 			case op_code {
 				Add(m1, m2, m3) -> {
-					io.println("Add")
+					// io.println("Add")
 					// io.debug(m1)
 					// io.debug(m2)
 					// io.debug(m3)
@@ -303,6 +303,10 @@ pub fn main(mem: List(Int), input: Int) -> State {
 
 fn sum(a:Int, b:Int) { a + b }
 
+fn list_max(lst) {
+	list.fold(over: lst, from: 0, with: int.max)
+}
+
 pub fn sequence(mem: List(Int), phase_seq: List(Int)) -> Int {
 	let accumulate = fn(phase: Int, input: Int) {
 		let state = State(
@@ -346,4 +350,12 @@ pub fn permutations(lst: List(Int)) -> List(List(Int)) {
 pub fn combinations(n: Int) -> List(List(Int)) {
 	list.range(0, n)
 		|> permutations
+}
+
+pub fn day7(mem: List(Int)) -> Int {
+	combinations(5)
+		|> list.map(fn(lst) {
+			sequence(mem, lst)
+		})
+		|> list_max
 }

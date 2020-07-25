@@ -4,10 +4,6 @@ import gleam/io
 import gleam/string
 import gleam/int
 
-pub fn hello_world() {
-	"Hello, from app!"
-}
-
 pub type OpCode {
 	Add(ParameterMode, ParameterMode, ParameterMode)
 	Multiply(ParameterMode, ParameterMode, ParameterMode)
@@ -72,9 +68,9 @@ pub fn num_to_op_code(num: Int) {
 	let m2 = mode_for(num,2)
 	let m3 = mode_for(num,3)
 	case num % 100 {
-		1 -> Add(m1, m2, m3)
-		2 -> Multiply(m1, m2, m3)
-		3 -> Store(m1)
+		1 -> Add(m1, m2, Value)
+		2 -> Multiply(m1, m2, Value)
+		3 -> Store(Value)
 		4 -> Output(m1)
 		_ -> Halt
 	}
@@ -133,9 +129,13 @@ fn consume(state: State) -> State {
 		Ok(op_code) ->
 			case op_code {
 				Add(m1, m2, m3) -> {
-					// io.println("Add")
+					io.println("Add")
+					// io.debug(m1)
+					// io.debug(m2)
+					// io.debug(m3)
 					params3(state, m1, m2, m3)
 						|> result.map(fn(params: Three) {
+							io.debug(params.val3)
 							let next_mem = put(state.mem, params.val3, params.val1 + params.val2)
 							let next_state = State(
 								mem : next_mem,
@@ -184,7 +184,7 @@ fn consume(state: State) -> State {
 				Output(m1) -> {
 					params1(state, m1)
 						|> result.map(fn(one: One) {
-							io.debug(one.val1)
+							// io.debug(one.val1)
 							let next_outputs = list.append(state.outputs, [one.val1])
 							let next_state = State(
 								mem : state.mem,
@@ -206,23 +206,14 @@ fn consume(state: State) -> State {
 	}
 }
 
-pub fn main(mem: List(Int)) -> List(Int) {
-	let state = State(
-		mem: mem,
-		pointer: 0,
-		input: 0,
-		outputs: [],
-	)
-	consume(state).mem
-}
-
-
-pub fn main_with_input(mem: List(Int), input: Int) -> List(Int) {
+pub fn main(mem: List(Int), input: Int) -> State {
 	let state = State(
 		mem: mem,
 		pointer: 0,
 		input: input,
 		outputs: [],
 	)
-	consume(state).outputs
+	let result = consume(state)
+	io.debug(result.outputs)
+	result
 }

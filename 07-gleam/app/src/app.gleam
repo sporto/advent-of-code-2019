@@ -318,3 +318,35 @@ pub fn sequence(mem: List(Int), phase_seq: List(Int)) -> Int {
 
 	list.fold(over: phase_seq, from: 0, with: accumulate)
 }
+
+// interleave 1 [2;3] = [ [1;2;3]; [2;1;3]; [2;3;1] ] 
+pub fn interleave(x, lst) -> List(List(Int)) {
+	case lst {
+		[] ->
+			[[x]]
+		[head, ..tail] -> {
+			let rest = list.map(interleave(x, tail), fn(y) { [head, ..y] } )
+
+			[[x, ..lst] , ..rest]
+		}
+	}
+}
+
+// permutations [1; 2; 3] = [[1; 2; 3]; [2; 1; 3]; [2; 3; 1]; [1; 3; 2]; [3; 1; 2]; [3; 2; 1]]
+pub fn permutations(lst: List(Int)) -> List(List(Int)) {
+	case lst {
+		[head, ..tail] ->
+			list.flatten(
+				list.map(permutations(tail), fn(x) { interleave(head, x) })
+			)
+		_ -> [lst]
+	}
+}
+//   match lst with
+//   | hd::tl -> List.concat (List.map (interleave hd) (permutations tl))
+//   | _ -> [lst]
+
+// pub fn combinations(n: Int) -> List(List(Int)) {
+// 	list.range(0, n)
+// 		|> permutations
+// }

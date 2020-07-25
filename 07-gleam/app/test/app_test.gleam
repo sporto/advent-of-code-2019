@@ -168,3 +168,30 @@ pub fn sequence_c_test() {
 	app.sequence(mem, seq)
 	|> should.equal(65210)
 }
+
+pub fn interleave_test() {
+	app.interleave(1, [2,3])
+	|> should.equal([
+		[1,2,3],
+		[2,1,3],
+		[2,3,1],
+	])
+}
+
+pub fn permutations_test() {
+	app.permutations([1,2])
+	|> should.equal([
+		[1,2],
+		[2,1],
+	])
+
+	app.permutations([1,2,3])
+	|> should.equal([
+		[1, 2, 3],
+		[2, 1, 3],
+		[2, 3, 1],
+		[1, 3, 2],
+		[3, 1, 2],
+		[3, 2, 1]
+	])
+}

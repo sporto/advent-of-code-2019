@@ -69,5 +69,5 @@ pub fn num_to_op_code_test() {
 
 pub fn main_05_test() {
 	app.main_with_input([3,0,4,0,99], 5)
-	|> should.equal(5)
+	|> should.equal([5])
 }

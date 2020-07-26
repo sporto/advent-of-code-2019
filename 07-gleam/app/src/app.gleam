@@ -25,60 +25,40 @@ pub type ParameterMode {
 type Mem = List(Int)
 
 pub type State {
-	Active(
+	State(
 		mem: Mem,
 		pointer: Int,
 		inputs: List(Int),
 	)
+}
+
+pub type Stage {
+	Active(
+		state: State
+	)
 	Output(
-		mem: Mem,
-		pointer: Int,
-		inputs: List(Int),
+		state: State,
 		output: Int
 	)
 	Halted(
-		mem: Mem,
-		pointer: Int,
+		state: State
 	)
 	Error(
-		mem: Mem,
-		pointer: Int,
+		state: State
 	)
 }
 
 pub fn state_mem(state: State) -> Mem {
-	case state {
-		Active(mem, _, _) -> mem
-		Output(mem, _, _, _) -> mem
-		Halted(mem, _) -> mem
-		Error(mem, _) -> mem
-	}
+	state.mem
 }
 
 fn state_pointer(state: State) -> Int {
-	case state {
-		Active(_, pointer, _) -> pointer
-		Output(_, pointer, _, _) -> pointer
-		Halted(_, pointer) -> pointer
-		Error(_, pointer) -> pointer
-	}
+	state.pointer
 }
 
 fn state_inputs(state: State) -> List(Int) {
-	case state {
-		Active(_, _, input) -> input
-		Output(_, _, input, _) -> input
-		Halted(_, _) -> []
-		Error(_, _) -> []
-	}
+	state.inputs
 }
-
-// type Response {
-// 	Start(State)
-// 	Output(State, Int)
-// 	Halted(State)
-// 	Error(State)
-// }
 
 pub type Return{
 	Return(
@@ -189,13 +169,10 @@ fn params3(state: State, m1, m2, m3) {
 	Ok(Three(p1, p2, p3, state_pointer(state) + 4))
 }
 
-fn consume(state: State) -> State {
+fn consume(state: State) -> Stage {
 	// io.debug(mem)
 	// io.debug(pointer)
-	let error = Error(
-		state_mem(state),
-		state_pointer(state)
-	)
+	let error = Error(state)
 
 	case get_op_code(state) {
 		Ok(op_code) ->
@@ -212,7 +189,7 @@ fn consume(state: State) -> State {
 								state_mem(state), params.val3, params.val1 + params.val2
 							)
 
-							let next_state = Active(
+							let next_state = State(
 								mem : next_mem,
 								pointer: params.next_pointer,
 								inputs: state_inputs(state),
@@ -232,7 +209,7 @@ fn consume(state: State) -> State {
 									state_mem(state), params.val3, params.val1 * params.val2
 								)
 
-								let next_state = Active(
+								let next_state = State(
 									mem : next_mem,
 									pointer: params.next_pointer,
 									inputs: state_inputs(state),
@@ -252,10 +229,12 @@ fn consume(state: State) -> State {
 
 							let next_mem = put(state_mem(state), one.val1, input)
 
-							let next_state = Active(
+							let next_inputs = state_inputs(state) |> list.drop(1)
+
+							let next_state = State(
 								mem : next_mem,
 								pointer: one.next_pointer,
-								inputs: state_inputs(state) |> list.drop(1),
+								inputs: next_inputs,
 							)
 							consume(next_state)
 						})
@@ -265,10 +244,14 @@ fn consume(state: State) -> State {
 					params1(state, m1)
 						|> result.map(fn(one: One) {
 							// io.debug(one.val1)
-							Output(
+							let next_state = State(
 								mem : state_mem(state),
 								pointer: one.next_pointer,
 								inputs: state_inputs(state),
+							)
+
+							Output(
+								state : next_state,
 								output: one.val1,
 							)
 						})
@@ -282,7 +265,7 @@ fn consume(state: State) -> State {
 								_ -> two.val2
 							}
 
-							let next_state = Active(
+							let next_state = State(
 								mem : state_mem(state),
 								pointer: next_pointer,
 								inputs: state_inputs(state),
@@ -299,7 +282,7 @@ fn consume(state: State) -> State {
 								_ -> two.next_pointer
 							}
 
-							let next_state = Active(
+							let next_state = State(
 								mem : state_mem(state),
 								pointer: next_pointer,
 								inputs: state_inputs(state),
@@ -319,7 +302,7 @@ fn consume(state: State) -> State {
 								state_mem(state), three.val3, value
 							)
 
-							let next_state = Active(
+							let next_state = State(
 								mem : next_mem,
 								pointer: three.next_pointer,
 								inputs: state_inputs(state),
@@ -337,7 +320,7 @@ fn consume(state: State) -> State {
 							}
 							let next_mem = put(state_mem(state), three.val3, value)
 
-							let next_state = Active(
+							let next_state = State(
 								mem : next_mem,
 								pointer: three.next_pointer,
 								inputs: state_inputs(state),
@@ -348,10 +331,7 @@ fn consume(state: State) -> State {
 				}
 				Halt -> {
 					// io.println("Halt")
-					Halted(
-						mem: state_mem(state),
-						pointer: state_pointer(state),
-					)
+					Halted(state)
 				}
 			}
 		_ ->
@@ -359,33 +339,34 @@ fn consume(state: State) -> State {
 	}
 }
 
-fn consume_until_halted(state: State, outputs: List(Int)) -> Return {
-	case state {
-		Active(_, _, _) -> {
-			let next_state = consume(state)
-			consume_until_halted(next_state, outputs)
+fn consume_until_halted(stage: Stage, outputs: List(Int)) -> Return {
+	case stage {
+		Active(state) -> {
+			let next_stage = consume(state)
+			consume_until_halted(next_stage, outputs)
 		}
-		Halted(_, _) -> Return(state, outputs)
-		Error(_, _) -> Return(state, outputs)
-		Output(mem, pointer, inputs, output) -> {
+		Halted(state) -> Return(state, outputs)
+		Error(state) -> Return(state, outputs)
+		Output(state, output) -> {
 			// io.debug("Output")
 			// io.debug(output)
-			let next_state = consume(state)
+			let next_stage = consume(state)
 			let next_outputs = list.append(outputs, [output])
 			// io.debug(next_outputs)
-			consume_until_halted(next_state, next_outputs)
+			consume_until_halted(next_stage, next_outputs)
 		}
 	}
 }
 
 
 pub fn main(mem: List(Int), input: Int) -> Return {
-	let state = Active(
+	let state = State(
 		mem: mem,
 		pointer: 0,
 		inputs: [input],
 	)
-	consume_until_halted(state, [])
+	let stage = Active(state)
+	consume_until_halted(stage, [])
 }
 
 fn sum(a:Int, b:Int) { a + b }
@@ -396,12 +377,13 @@ fn list_max(lst) {
 
 pub fn sequence(mem: List(Int), phase_seq: List(Int)) -> Int {
 	let accumulate = fn(phase: Int, input: Int) {
-		let state = Active(
+		let state = State(
 			mem: mem,
 			pointer: 0,
 			inputs: [phase, input],
 		)
-		let return = consume_until_halted(state ,[])
+		let stage = Active(state)
+		let return = consume_until_halted(stage ,[])
 
 		// Add the outputs
 		list.fold(over: return.outputs, from: 0, with: sum)
@@ -465,10 +447,10 @@ pub fn day7(mem: List(Int)) -> Int {
 // 		case res {
 // 			Error(_) ->
 // 				Error("Can get amplifier")
-// 			Ok((amplifier_response, amplifiers)) -> {
-// 				case amplifier_response {
-// 					Start(state) ->
-// 						let response = consume(amplifier)
+// 			Ok((amplifier_state, amplifiers)) -> {
+// 				case amplifier_state {
+// 					Active(state) ->
+// 						let response = consume_until_output(amplifier)
 // 					Output(state, output) ->
 
 // 					Halted(_) ->

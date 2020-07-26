@@ -13,7 +13,7 @@ pub type OpCode {
 	LessThan(ParameterMode, ParameterMode, ParameterMode)
 	Equal(ParameterMode, ParameterMode, ParameterMode)
 	Halt
-	Output(ParameterMode)
+	Out(ParameterMode)
 }
 
 pub type ParameterMode {
@@ -26,7 +26,20 @@ pub type State {
 		mem: List(Int),
 		pointer: Int,
 		inputs: List(Int),
-		outputs : List(Int),
+	)
+}
+
+type Response {
+	Start(State)
+	Output(State, Int)
+	Halted(State)
+	Error(State)
+}
+
+pub type Return{
+	Return(
+		state: State,
+		outputs: List(Int),
 	)
 }
 
@@ -75,7 +88,7 @@ pub fn num_to_op_code(num: Int) {
 		1 -> Add(m1, m2, Value)
 		2 -> Multiply(m1, m2, Value)
 		3 -> Store(Value)
-		4 -> Output(m1)
+		4 -> Out(m1)
 		5 -> JumpIfTrue(m1, m2)
 		6 -> JumpIfFalse(m1, m2)
 		7 -> LessThan(m1, m2, Value)
@@ -129,9 +142,10 @@ fn params3(state: State, m1, m2, m3) {
 	Ok(Three(p1, p2, p3, state.pointer + 4))
 }
 
-fn consume(state: State) -> State {
+fn consume(state: State) -> Response {
 	// io.debug(mem)
 	// io.debug(pointer)
+	let error = Error(state)
 
 	case get_op_code(state) {
 		Ok(op_code) ->
@@ -149,11 +163,10 @@ fn consume(state: State) -> State {
 								mem : next_mem,
 								pointer: params.next_pointer,
 								inputs: state.inputs,
-								outputs: state.outputs,
 							)
 							consume(next_state)
 						})
-						|> result.unwrap(state)
+						|> result.unwrap(error)
 				}
 				Multiply(m1, m2, m3) -> {
 					// io.println("Multiply")
@@ -167,12 +180,11 @@ fn consume(state: State) -> State {
 									mem : next_mem,
 									pointer: params.next_pointer,
 									inputs: state.inputs,
-									outputs: state.outputs,
 								)
 								consume(next_state)
 							}
 						_ ->
-							state
+							error
 					}
 				}
 				Store(m1) -> {
@@ -186,26 +198,23 @@ fn consume(state: State) -> State {
 								mem : next_mem,
 								pointer: one.next_pointer,
 								inputs: state.inputs |> list.drop(1),
-								outputs: state.outputs,
 							)
 							consume(next_state)
 						})
-						|> result.unwrap(state)
+						|> result.unwrap(error)
 				}
-				Output(m1) -> {
+				Out(m1) -> {
 					params1(state, m1)
 						|> result.map(fn(one: One) {
 							// io.debug(one.val1)
-							let next_outputs = list.append(state.outputs, [one.val1])
 							let next_state = State(
 								mem : state.mem,
 								pointer: one.next_pointer,
 								inputs: state.inputs,
-								outputs: next_outputs,
 							)
-							consume(next_state)
+							Output(next_state, one.val1)
 						})
-						|> result.unwrap(state)
+						|> result.unwrap(error)
 				}
 				JumpIfTrue(m1, m2) -> {
 					params2(state, m1, m2)
@@ -219,11 +228,10 @@ fn consume(state: State) -> State {
 								mem : state.mem,
 								pointer: next_pointer,
 								inputs: state.inputs,
-								outputs: state.outputs,
 							)
 							consume(next_state)
 						})
-						|> result.unwrap(state)
+						|> result.unwrap(error)
 				}
 				JumpIfFalse(m1, m2) -> {
 					params2(state, m1, m2)
@@ -237,11 +245,10 @@ fn consume(state: State) -> State {
 								mem : state.mem,
 								pointer: next_pointer,
 								inputs: state.inputs,
-								outputs: state.outputs,
 							)
 							consume(next_state)
 						})
-						|> result.unwrap(state)
+						|> result.unwrap(error)
 				}
 				LessThan(m1, m2, m3) -> {
 					params3(state, m1, m2, m3)
@@ -255,11 +262,10 @@ fn consume(state: State) -> State {
 								mem : next_mem,
 								pointer: three.next_pointer,
 								inputs: state.inputs,
-								outputs: state.outputs,
 							)
 							consume(next_state)
 						})
-						|> result.unwrap(state)
+						|> result.unwrap(error)
 				}
 				Equal(m1, m2, m3) -> {
 					params3(state, m1, m2, m3)
@@ -273,32 +279,48 @@ fn consume(state: State) -> State {
 								mem : next_mem,
 								pointer: three.next_pointer,
 								inputs: state.inputs,
-								outputs: state.outputs,
 							)
 							consume(next_state)
 						})
-						|> result.unwrap(state)
+						|> result.unwrap(error)
 				}
 				Halt -> {
 					// io.println("Halt")
-					state
+					Halted(state)
 				}
 			}
 		_ ->
-			state
+			error
 	}
 }
 
-pub fn main(mem: List(Int), input: Int) -> State {
+fn consume_until_halted(response: Response, outputs: List(Int)) -> Return {
+	case response {
+		Start(state) -> {
+			let next_response = consume(state)
+			consume_until_halted(next_response, outputs)
+		}
+		Halted(state) -> Return(state, outputs)
+		Error(state) -> Return(state, outputs)
+		Output(state, output) -> {
+			// io.debug("Output")
+			// io.debug(output)
+			let next_response = consume(state)
+			let next_outputs = list.append(outputs, [output])
+			// io.debug(next_outputs)
+			consume_until_halted(next_response, next_outputs)
+		}
+	}
+}
+
+
+pub fn main(mem: List(Int), input: Int) -> Return {
 	let state = State(
 		mem: mem,
 		pointer: 0,
 		inputs: [input],
-		outputs: [],
 	)
-	let result = consume(state)
-	io.debug(result.outputs)
-	result
+	consume_until_halted(Start(state), [])
 }
 
 fn sum(a:Int, b:Int) { a + b }
@@ -313,11 +335,11 @@ pub fn sequence(mem: List(Int), phase_seq: List(Int)) -> Int {
 			mem: mem,
 			pointer: 0,
 			inputs: [phase, input],
-			outputs: [],
 		)
-		let result = consume(state)
+		let return = consume_until_halted(Start(state) ,[])
 
-		list.fold(over: result.outputs, from: 0, with: sum)
+		// Add the outputs
+		list.fold(over: return.outputs, from: 0, with: sum)
 	}
 
 	list.fold(over: phase_seq, from: 0, with: accumulate)
@@ -359,3 +381,22 @@ pub fn day7(mem: List(Int)) -> Int {
 		})
 		|> list_max
 }
+
+// -> Outputed
+// -> Halted
+
+pub fn feedback_loop(mem, phase_seq) {
+	let make_amplifier = fn(phase) {
+		State(
+			mem: mem,
+			pointer: 0,
+			inputs: [phase],
+		)
+	}
+
+	list.map(phase_seq, make_amplifier)
+}
+
+// pub fn hello() -> String {
+// 	let res = "Hello"
+// }

@@ -3,6 +3,7 @@ import gleam/result
 import gleam/io
 import gleam/string
 import gleam/int
+import gleam/queue
 
 pub type OpCode {
 	Add(ParameterMode, ParameterMode, ParameterMode)
@@ -21,20 +22,63 @@ pub type ParameterMode {
 	Value
 }
 
+type Mem = List(Int)
+
 pub type State {
-	State(
-		mem: List(Int),
+	Active(
+		mem: Mem,
 		pointer: Int,
 		inputs: List(Int),
 	)
+	Output(
+		mem: Mem,
+		pointer: Int,
+		inputs: List(Int),
+		output: Int
+	)
+	Halted(
+		mem: Mem,
+		pointer: Int,
+	)
+	Error(
+		mem: Mem,
+		pointer: Int,
+	)
 }
 
-type Response {
-	Start(State)
-	Output(State, Int)
-	Halted(State)
-	Error(State)
+pub fn state_mem(state: State) -> Mem {
+	case state {
+		Active(mem, _, _) -> mem
+		Output(mem, _, _, _) -> mem
+		Halted(mem, _) -> mem
+		Error(mem, _) -> mem
+	}
 }
+
+fn state_pointer(state: State) -> Int {
+	case state {
+		Active(_, pointer, _) -> pointer
+		Output(_, pointer, _, _) -> pointer
+		Halted(_, pointer) -> pointer
+		Error(_, pointer) -> pointer
+	}
+}
+
+fn state_inputs(state: State) -> List(Int) {
+	case state {
+		Active(_, _, input) -> input
+		Output(_, _, input, _) -> input
+		Halted(_, _) -> []
+		Error(_, _) -> []
+	}
+}
+
+// type Response {
+// 	Start(State)
+// 	Output(State, Int)
+// 	Halted(State)
+// 	Error(State)
+// }
 
 pub type Return{
 	Return(
@@ -98,19 +142,22 @@ pub fn num_to_op_code(num: Int) {
 }
 
 fn get_op_code(state: State) -> Result(OpCode, Nil) {
-	list.at(state.mem, state.pointer)
+	list.at(state_mem(state), state_pointer(state))
 		|> result.map(_, num_to_op_code)
 }
 
 fn get_value(state: State, offset address_offset: Int, mode mode: ParameterMode)  -> Result(Int, Nil) {
-	let first = list.at(state.mem, state.pointer + address_offset)
+	let first = list.at(
+		state_mem(state), state_pointer(state) + address_offset)
 
 	case mode {
 		Value ->
 			first
 		Position ->
 			first
-			|> result.then(_, fn(address) { list.at(state.mem, address) })
+			|> result.then(_, fn(address) { 
+				list.at(state_mem(state), address) 
+			})
 	}
 }
 
@@ -124,14 +171,14 @@ fn put(mem, address, val) {
 fn params1(state: State, m1) {
 	try p1 = get_value(state, 1, mode: m1)
 
-	Ok(One(p1, state.pointer + 2))
+	Ok(One(p1, state_pointer(state) + 2))
 }
 
 fn params2(state: State, m1, m2) {
 	try p1 = get_value(state, 1, mode: m1)
 	try p2 = get_value(state, 2, mode: m2)
 
-	Ok(Two(p1, p2, state.pointer + 3))
+	Ok(Two(p1, p2, state_pointer(state) + 3))
 }
 
 fn params3(state: State, m1, m2, m3) {
@@ -139,13 +186,16 @@ fn params3(state: State, m1, m2, m3) {
 	try p2 = get_value(state, 2, mode: m2)
 	try p3 = get_value(state, 3, mode: m3)
 
-	Ok(Three(p1, p2, p3, state.pointer + 4))
+	Ok(Three(p1, p2, p3, state_pointer(state) + 4))
 }
 
-fn consume(state: State) -> Response {
+fn consume(state: State) -> State {
 	// io.debug(mem)
 	// io.debug(pointer)
-	let error = Error(state)
+	let error = Error(
+		state_mem(state),
+		state_pointer(state)
+	)
 
 	case get_op_code(state) {
 		Ok(op_code) ->
@@ -158,11 +208,14 @@ fn consume(state: State) -> Response {
 					params3(state, m1, m2, m3)
 						|> result.map(fn(params: Three) {
 							// io.debug(params.val3)
-							let next_mem = put(state.mem, params.val3, params.val1 + params.val2)
-							let next_state = State(
+							let next_mem = put(
+								state_mem(state), params.val3, params.val1 + params.val2
+							)
+
+							let next_state = Active(
 								mem : next_mem,
 								pointer: params.next_pointer,
-								inputs: state.inputs,
+								inputs: state_inputs(state),
 							)
 							consume(next_state)
 						})
@@ -175,11 +228,14 @@ fn consume(state: State) -> Response {
 					case params {
 						Ok(params) ->
 							{
-								let next_mem = put(state.mem, params.val3, params.val1 * params.val2)
-								let next_state = State(
+								let next_mem = put(
+									state_mem(state), params.val3, params.val1 * params.val2
+								)
+
+								let next_state = Active(
 									mem : next_mem,
 									pointer: params.next_pointer,
-									inputs: state.inputs,
+									inputs: state_inputs(state),
 								)
 								consume(next_state)
 							}
@@ -190,14 +246,16 @@ fn consume(state: State) -> Response {
 				Store(m1) -> {
 					params1(state, m1)
 						|> result.map(fn(one: One) {
-							let input = state.inputs
+							let input = state_inputs(state)
 								|> list.head
 								|> result.unwrap(0)
-							let next_mem = put(state.mem, one.val1, input)
-							let next_state = State(
+
+							let next_mem = put(state_mem(state), one.val1, input)
+
+							let next_state = Active(
 								mem : next_mem,
 								pointer: one.next_pointer,
-								inputs: state.inputs |> list.drop(1),
+								inputs: state_inputs(state) |> list.drop(1),
 							)
 							consume(next_state)
 						})
@@ -207,12 +265,12 @@ fn consume(state: State) -> Response {
 					params1(state, m1)
 						|> result.map(fn(one: One) {
 							// io.debug(one.val1)
-							let next_state = State(
-								mem : state.mem,
+							Output(
+								mem : state_mem(state),
 								pointer: one.next_pointer,
-								inputs: state.inputs,
+								inputs: state_inputs(state),
+								output: one.val1,
 							)
-							Output(next_state, one.val1)
 						})
 						|> result.unwrap(error)
 				}
@@ -224,10 +282,10 @@ fn consume(state: State) -> Response {
 								_ -> two.val2
 							}
 
-							let next_state = State(
-								mem : state.mem,
+							let next_state = Active(
+								mem : state_mem(state),
 								pointer: next_pointer,
-								inputs: state.inputs,
+								inputs: state_inputs(state),
 							)
 							consume(next_state)
 						})
@@ -241,10 +299,10 @@ fn consume(state: State) -> Response {
 								_ -> two.next_pointer
 							}
 
-							let next_state = State(
-								mem : state.mem,
+							let next_state = Active(
+								mem : state_mem(state),
 								pointer: next_pointer,
-								inputs: state.inputs,
+								inputs: state_inputs(state),
 							)
 							consume(next_state)
 						})
@@ -257,11 +315,14 @@ fn consume(state: State) -> Response {
 								True -> 1
 								False -> 0
 							}
-							let next_mem = put(state.mem, three.val3, value)
-							let next_state = State(
+							let next_mem = put(
+								state_mem(state), three.val3, value
+							)
+
+							let next_state = Active(
 								mem : next_mem,
 								pointer: three.next_pointer,
-								inputs: state.inputs,
+								inputs: state_inputs(state),
 							)
 							consume(next_state)
 						})
@@ -274,11 +335,12 @@ fn consume(state: State) -> Response {
 								True -> 1
 								False -> 0
 							}
-							let next_mem = put(state.mem, three.val3, value)
-							let next_state = State(
+							let next_mem = put(state_mem(state), three.val3, value)
+
+							let next_state = Active(
 								mem : next_mem,
 								pointer: three.next_pointer,
-								inputs: state.inputs,
+								inputs: state_inputs(state),
 							)
 							consume(next_state)
 						})
@@ -286,7 +348,10 @@ fn consume(state: State) -> Response {
 				}
 				Halt -> {
 					// io.println("Halt")
-					Halted(state)
+					Halted(
+						mem: state_mem(state),
+						pointer: state_pointer(state),
+					)
 				}
 			}
 		_ ->
@@ -294,33 +359,33 @@ fn consume(state: State) -> Response {
 	}
 }
 
-fn consume_until_halted(response: Response, outputs: List(Int)) -> Return {
-	case response {
-		Start(state) -> {
-			let next_response = consume(state)
-			consume_until_halted(next_response, outputs)
+fn consume_until_halted(state: State, outputs: List(Int)) -> Return {
+	case state {
+		Active(_, _, _) -> {
+			let next_state = consume(state)
+			consume_until_halted(next_state, outputs)
 		}
-		Halted(state) -> Return(state, outputs)
-		Error(state) -> Return(state, outputs)
-		Output(state, output) -> {
+		Halted(_, _) -> Return(state, outputs)
+		Error(_, _) -> Return(state, outputs)
+		Output(mem, pointer, inputs, output) -> {
 			// io.debug("Output")
 			// io.debug(output)
-			let next_response = consume(state)
+			let next_state = consume(state)
 			let next_outputs = list.append(outputs, [output])
 			// io.debug(next_outputs)
-			consume_until_halted(next_response, next_outputs)
+			consume_until_halted(next_state, next_outputs)
 		}
 	}
 }
 
 
 pub fn main(mem: List(Int), input: Int) -> Return {
-	let state = State(
+	let state = Active(
 		mem: mem,
 		pointer: 0,
 		inputs: [input],
 	)
-	consume_until_halted(Start(state), [])
+	consume_until_halted(state, [])
 }
 
 fn sum(a:Int, b:Int) { a + b }
@@ -331,12 +396,12 @@ fn list_max(lst) {
 
 pub fn sequence(mem: List(Int), phase_seq: List(Int)) -> Int {
 	let accumulate = fn(phase: Int, input: Int) {
-		let state = State(
+		let state = Active(
 			mem: mem,
 			pointer: 0,
 			inputs: [phase, input],
 		)
-		let return = consume_until_halted(Start(state) ,[])
+		let return = consume_until_halted(state ,[])
 
 		// Add the outputs
 		list.fold(over: return.outputs, from: 0, with: sum)
@@ -382,21 +447,35 @@ pub fn day7(mem: List(Int)) -> Int {
 		|> list_max
 }
 
-// -> Outputed
-// -> Halted
+// pub fn feedback_loop(mem, phase_seq) {
+// 	let make_amplifier = fn(phase) {
+// 		State(
+// 			mem: mem,
+// 			pointer: 0,
+// 			inputs: [phase],
+// 		)
+// 	}
 
-pub fn feedback_loop(mem, phase_seq) {
-	let make_amplifier = fn(phase) {
-		State(
-			mem: mem,
-			pointer: 0,
-			inputs: [phase],
-		)
-	}
+// 	let q = list.map(phase_seq, make_amplifier)
+// 		|> list.map(Start)
+// 		|> queue.from_list
 
-	list.map(phase_seq, make_amplifier)
-}
+// 	let run(queue_) {
+// 		let res = queue.pop_front(queue_)
+// 		case res {
+// 			Error(_) ->
+// 				Error("Can get amplifier")
+// 			Ok((amplifier_response, amplifiers)) -> {
+// 				case amplifier_response {
+// 					Start(state) ->
+// 						let response = consume(amplifier)
+// 					Output(state, output) ->
 
-// pub fn hello() -> String {
-// 	let res = "Hello"
+// 					Halted(_) ->
+// 					Error(_)
+// 				}
+
+// 			}
+// 		}
+// 	}
 // }

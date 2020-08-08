@@ -24,6 +24,7 @@ pub type ParameterMode {
 
 type Mem = List(Int)
 
+// TODO, remove inputs from state
 pub type State {
 	State(
 		mem: Mem,
@@ -33,12 +34,9 @@ pub type State {
 }
 
 pub type Stage {
-	Active(
-		state: State
-	)
 	Output(
 		state: State,
-		output: Int
+		outputs: List(Int)
 	)
 	Halted(
 		state: State
@@ -128,7 +126,8 @@ fn get_op_code(state: State) -> Result(OpCode, Nil) {
 
 fn get_value(state: State, offset address_offset: Int, mode mode: ParameterMode)  -> Result(Int, Nil) {
 	let first = list.at(
-		state_mem(state), state_pointer(state) + address_offset)
+		state_mem(state), state_pointer(state) + address_offset
+	)
 
 	case mode {
 		Value ->
@@ -252,7 +251,7 @@ fn consume(state: State) -> Stage {
 
 							Output(
 								state : next_state,
-								output: one.val1,
+								outputs: [one.val1],
 							)
 						})
 						|> result.unwrap(error)
@@ -341,17 +340,13 @@ fn consume(state: State) -> Stage {
 
 fn consume_until_halted(stage: Stage, outputs: List(Int)) -> Return {
 	case stage {
-		Active(state) -> {
-			let next_stage = consume(state)
-			consume_until_halted(next_stage, outputs)
-		}
 		Halted(state) -> Return(state, outputs)
 		Error(state) -> Return(state, outputs)
-		Output(state, output) -> {
+		Output(state, new_outputs) -> {
 			// io.debug("Output")
 			// io.debug(output)
 			let next_stage = consume(state)
-			let next_outputs = list.append(outputs, [output])
+			let next_outputs = list.append(outputs, new_outputs)
 			// io.debug(next_outputs)
 			consume_until_halted(next_stage, next_outputs)
 		}
@@ -365,7 +360,7 @@ pub fn main(mem: List(Int), input: Int) -> Return {
 		pointer: 0,
 		inputs: [input],
 	)
-	let stage = Active(state)
+	let stage = Output(state, [])
 	consume_until_halted(stage, [])
 }
 
@@ -382,7 +377,7 @@ pub fn sequence(mem: List(Int), phase_seq: List(Int)) -> Int {
 			pointer: 0,
 			inputs: [phase, input],
 		)
-		let stage = Active(state)
+		let stage = Output(state, [])
 		let return = consume_until_halted(stage ,[])
 
 		// Add the outputs
@@ -429,7 +424,64 @@ pub fn day7(mem: List(Int)) -> Int {
 		|> list_max
 }
 
-// pub fn feedback_loop(mem, phase_seq) {
+// fn feedback_loop_run_amplifier(state: State, input: Int) -> Stage {
+// 	let next_state = State(
+// 		mem: state_mem(state),
+// 		pointer: state_pointer(state),
+// 		inputs: [input]
+// 	)
+// 	let next_stage = consume(next_state)
+
+// 	next_stage
+// }
+
+// fn feedback_loop_process_next_in_queue(queue_: queue.Queue(Stage), input: Int) -> Int {
+// 	case queue.pop_front(queue_) {
+// 		Error(_) ->
+// 			0
+// 		Ok(pair) -> {
+// 			let tuple(amplifier_stage, amplifier_stages) = pair
+// 			let run_amplifier = fn(state: State) {
+// 				// Run amplifier using previous output as input
+// 				// On Output, store output and run next amplifier
+// 				// Put this amplifier at the end of the queue
+// 				let next_state = State(
+// 					mem: state_mem(state),
+// 					pointer: state_pointer(state),
+// 					inputs: [input]
+// 				)
+// 				let next_stage = consume(next_state)
+// 				case next_stage {
+// 					Output(_, output) ->
+// 						run(
+// 							queue.push_back(
+// 								amplifier_stages, next_stage
+// 							),
+// 							output
+// 						)
+// 					_ ->
+// 						run(
+// 							queue.push_back(
+// 								amplifier_stages, next_stage
+// 							),
+// 							input
+// 						)
+// 				}
+// 			}
+// 			case amplifier_stage {
+// 				Active(state) ->
+// 					feedback_loop_run_amplifier(state, input)
+// 				Output(state, _) ->
+// 					feedback_loop_run_amplifier(state, input)
+// 				// If the amplifier is already halted, then stop
+// 				Halted(state) -> input
+// 				Error(state) -> input
+// 			}
+// 		}
+// 	}
+// }
+
+// pub fn feedback_loop(mem: Mem, phase_seq: List(Int)) -> Int {
 // 	let make_amplifier = fn(phase) {
 // 		State(
 // 			mem: mem,
@@ -439,25 +491,8 @@ pub fn day7(mem: List(Int)) -> Int {
 // 	}
 
 // 	let q = list.map(phase_seq, make_amplifier)
-// 		|> list.map(Start)
+// 		|> list.map(Active)
 // 		|> queue.from_list
 
-// 	let run(queue_) {
-// 		let res = queue.pop_front(queue_)
-// 		case res {
-// 			Error(_) ->
-// 				Error("Can get amplifier")
-// 			Ok((amplifier_state, amplifiers)) -> {
-// 				case amplifier_state {
-// 					Active(state) ->
-// 						let response = consume_until_output(amplifier)
-// 					Output(state, output) ->
-
-// 					Halted(_) ->
-// 					Error(_)
-// 				}
-
-// 			}
-// 		}
-// 	}
+// 	feedback_loop_process_next_in_queue(q, 0)
 // }

@@ -28,20 +28,17 @@ pub type Program {
 	Program(
 		mem: Mem,
 		pointer: Int,
+		inputs: List(Int),
+		outputs: List(Int),
+		state: State,
 	)
 }
 
-pub type Stage {
-	Output(
-		program: Program,
-		outputs: List(Int)
-	)
-	Halted(
-		program: Program
-	)
-	Failure(
-		program: Program
-	)
+pub type State {
+	Running
+	Output(Int)
+	Halted
+	Failure
 }
 
 pub fn program_mem(program: Program) -> Mem {
@@ -50,13 +47,6 @@ pub fn program_mem(program: Program) -> Mem {
 
 fn program_pointer(program: Program) -> Int {
 	program.pointer
-}
-
-pub type Return{
-	Return(
-		program: Program,
-		outputs: List(Int),
-	)
 }
 
 type One {
@@ -162,19 +152,15 @@ fn params3(program: Program, m1, m2, m3) {
 	Ok(Three(p1, p2, p3, program_pointer(program) + 4))
 }
 
-pub type ConsumeReturn{
-	ConsumeReturn(
-		stage: Stage,
-		next_inputs: List(Int),
-	)
-}
-
-fn consume(program: Program, inputs: List(Int)) -> ConsumeReturn {
+fn consume(program: Program) -> Program {
 	// io.debug(mem)
 	// io.debug(pointer)
-	let error = ConsumeReturn(
-		stage: Failure(program),
-		next_inputs: inputs,
+	let error = Program(
+		mem: program.mem,
+		pointer: program.pointer,
+		inputs: program.inputs,
+		outputs: program.outputs,
+		state: Failure,
 	)
 
 	case get_op_code(program) {
@@ -195,8 +181,11 @@ fn consume(program: Program, inputs: List(Int)) -> ConsumeReturn {
 							let next_program = Program(
 								mem : next_mem,
 								pointer: params.next_pointer,
+								inputs: program.inputs,
+								outputs: program.outputs,
+								state: Running,
 							)
-							consume(next_program, inputs)
+							consume(next_program)
 						})
 						|> result.unwrap(error)
 				}
@@ -214,8 +203,11 @@ fn consume(program: Program, inputs: List(Int)) -> ConsumeReturn {
 								let next_program = Program(
 									mem : next_mem,
 									pointer: params.next_pointer,
+									inputs: program.inputs,
+									outputs: program.outputs,
+									state: Running,
 								)
-								consume(next_program, inputs)
+								consume(next_program)
 							}
 						_ ->
 							error
@@ -224,19 +216,22 @@ fn consume(program: Program, inputs: List(Int)) -> ConsumeReturn {
 				Store(m1) -> {
 					params1(program, m1)
 						|> result.map(fn(one: One) {
-							let input = inputs
+							let input = program.inputs
 								|> list.head
 								|> result.unwrap(0)
 
-							let next_inputs = inputs |> list.drop(1)
+							let next_inputs = program.inputs |> list.drop(1)
 
 							let next_mem = put(program_mem(program), one.val1, input)
 
 							let next_program = Program(
 								mem : next_mem,
 								pointer: one.next_pointer,
+								inputs: next_inputs,
+								outputs: program.outputs,
+								state: Running,
 							)
-							consume(next_program, next_inputs)
+							consume(next_program)
 						})
 						|> result.unwrap(error)
 				}
@@ -244,17 +239,12 @@ fn consume(program: Program, inputs: List(Int)) -> ConsumeReturn {
 					params1(program, m1)
 						|> result.map(fn(one: One) {
 							// io.debug(one.val1)
-							let next_program = Program(
+							Program(
 								mem : program_mem(program),
 								pointer: one.next_pointer,
-							)
-
-							ConsumeReturn(
-								Output(
-									program : next_program,
-									outputs: [one.val1],
-								),
-								inputs
+								inputs: program.inputs,
+								outputs: list.append(program.outputs, [one.val1]),
+								state: Output(one.val1),
 							)
 						})
 						|> result.unwrap(error)
@@ -270,8 +260,11 @@ fn consume(program: Program, inputs: List(Int)) -> ConsumeReturn {
 							let next_program = Program(
 								mem : program_mem(program),
 								pointer: next_pointer,
+								inputs: program.inputs,
+								outputs: program.outputs,
+								state: Running,
 							)
-							consume(next_program, inputs)
+							consume(next_program)
 						})
 						|> result.unwrap(error)
 				}
@@ -286,8 +279,11 @@ fn consume(program: Program, inputs: List(Int)) -> ConsumeReturn {
 							let next_program = Program(
 								mem : program_mem(program),
 								pointer: next_pointer,
+								inputs: program.inputs,
+								outputs: program.outputs,
+								state: Running,
 							)
-							consume(next_program, inputs)
+							consume(next_program)
 						})
 						|> result.unwrap(error)
 				}
@@ -301,12 +297,14 @@ fn consume(program: Program, inputs: List(Int)) -> ConsumeReturn {
 							let next_mem = put(
 								program_mem(program), three.val3, value
 							)
-
 							let next_program = Program(
 								mem : next_mem,
 								pointer: three.next_pointer,
+								inputs: program.inputs,
+								outputs: program.outputs,
+								state: Running,
 							)
-							consume(next_program, inputs)
+							consume(next_program)
 						})
 						|> result.unwrap(error)
 				}
@@ -322,14 +320,23 @@ fn consume(program: Program, inputs: List(Int)) -> ConsumeReturn {
 							let next_program = Program(
 								mem : next_mem,
 								pointer: three.next_pointer,
+								inputs: program.inputs,
+								outputs: program.outputs,
+								state: Running,
 							)
-							consume(next_program, inputs)
+							consume(next_program)
 						})
 						|> result.unwrap(error)
 				}
 				Halt -> {
 					// io.println("Halt")
-					ConsumeReturn(Halted(program), inputs)
+					Program(
+						mem : program.mem,
+						pointer: program.pointer,
+						inputs: program.inputs,
+						outputs: program.outputs,
+						state: Halted,
+					)
 				}
 			}
 		_ ->
@@ -337,29 +344,30 @@ fn consume(program: Program, inputs: List(Int)) -> ConsumeReturn {
 	}
 }
 
-fn consume_until_halted(stage: Stage, inputs: List(Int), outputs: List(Int)) -> Return {
-	case stage {
-		Halted(program) -> Return(program, outputs)
-		Failure(program) -> Return(program, outputs)
-		Output(program, new_outputs) -> {
+fn consume_until_halted(program: Program) -> Program {
+	case program.state {
+		Halted -> program
+		Failure -> program
+		_ -> {
 			// io.debug("Output")
 			// io.debug(output)
-			let ConsumeReturn(next_stage, next_inputs) = consume(program, inputs)
-			let next_outputs = list.append(outputs, new_outputs)
+			let next_program = consume(program)
 			// io.debug(next_outputs)
-			consume_until_halted(next_stage, next_inputs, next_outputs)
+			consume_until_halted(next_program)
 		}
 	}
 }
 
 
-pub fn main(mem: List(Int), input: Int) -> Return {
+pub fn main(mem: List(Int), input: Int) -> Program {
 	let program = Program(
 		mem: mem,
 		pointer: 0,
+		inputs: [input],
+		outputs: [],
+		state: Running,
 	)
-	let stage = Output(program, [])
-	consume_until_halted(stage, [input], [])
+	consume_until_halted(program)
 }
 
 fn sum(a:Int, b:Int) { a + b }
@@ -373,9 +381,11 @@ pub fn sequence(mem: List(Int), phase_seq: List(Int)) -> Int {
 		let program = Program(
 			mem: mem,
 			pointer: 0,
+			inputs: [phase, input],
+			outputs: [],
+			state: Running,
 		)
-		let stage = Output(program, [])
-		let return = consume_until_halted(stage ,[phase, input], [])
+		let return = consume_until_halted(program)
 
 		// Add the outputs
 		list.fold(over: return.outputs, from: 0, with: sum)

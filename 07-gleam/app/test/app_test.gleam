@@ -41,8 +41,7 @@ pub fn num_to_op_code_test() {
 pub fn main_2_test() {
 	let input = [1101,100,-1,4,0]
 
-	app.main(input, 0).program
-	|> app.program_mem
+	app.main(input, 0).mem
 	|> should.equal([1101,100,-1,4,99])
 }
 

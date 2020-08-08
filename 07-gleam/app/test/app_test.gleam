@@ -41,8 +41,8 @@ pub fn num_to_op_code_test() {
 pub fn main_2_test() {
 	let input = [1101,100,-1,4,0]
 
-	app.main(input, 0).state
-	|> app.state_mem
+	app.main(input, 0).program
+	|> app.program_mem
 	|> should.equal([1101,100,-1,4,99])
 }
 
@@ -221,5 +221,5 @@ pub fn day7_test() {
 // 	let program = [3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5]
 
 // 	app.feedback_loop(program, seq)
-// 	|> should.equal(139629729)
+// 	|> should.equal([139629729])
 // }

@@ -24,43 +24,37 @@ pub type ParameterMode {
 
 type Mem = List(Int)
 
-// TODO, remove inputs from state
-pub type State {
-	State(
+pub type Program {
+	Program(
 		mem: Mem,
 		pointer: Int,
-		inputs: List(Int),
 	)
 }
 
 pub type Stage {
 	Output(
-		state: State,
+		program: Program,
 		outputs: List(Int)
 	)
 	Halted(
-		state: State
+		program: Program
 	)
-	Error(
-		state: State
+	Failure(
+		program: Program
 	)
 }
 
-pub fn state_mem(state: State) -> Mem {
-	state.mem
+pub fn program_mem(program: Program) -> Mem {
+	program.mem
 }
 
-fn state_pointer(state: State) -> Int {
-	state.pointer
-}
-
-fn state_inputs(state: State) -> List(Int) {
-	state.inputs
+fn program_pointer(program: Program) -> Int {
+	program.pointer
 }
 
 pub type Return{
 	Return(
-		state: State,
+		program: Program,
 		outputs: List(Int),
 	)
 }
@@ -119,14 +113,14 @@ pub fn num_to_op_code(num: Int) {
 	}
 }
 
-fn get_op_code(state: State) -> Result(OpCode, Nil) {
-	list.at(state_mem(state), state_pointer(state))
+fn get_op_code(program: Program) -> Result(OpCode, Nil) {
+	list.at(program_mem(program), program_pointer(program))
 		|> result.map(_, num_to_op_code)
 }
 
-fn get_value(state: State, offset address_offset: Int, mode mode: ParameterMode)  -> Result(Int, Nil) {
+fn get_value(program: Program, offset address_offset: Int, mode mode: ParameterMode)  -> Result(Int, Nil) {
 	let first = list.at(
-		state_mem(state), state_pointer(state) + address_offset
+		program_mem(program), program_pointer(program) + address_offset
 	)
 
 	case mode {
@@ -135,7 +129,7 @@ fn get_value(state: State, offset address_offset: Int, mode mode: ParameterMode)
 		Position ->
 			first
 			|> result.then(_, fn(address) { 
-				list.at(state_mem(state), address) 
+				list.at(program_mem(program), address) 
 			})
 	}
 }
@@ -147,33 +141,43 @@ fn put(mem, address, val) {
 	list.flatten([left, [val], right])
 }
 
-fn params1(state: State, m1) {
-	try p1 = get_value(state, 1, mode: m1)
+fn params1(program: Program, m1) {
+	try p1 = get_value(program, 1, mode: m1)
 
-	Ok(One(p1, state_pointer(state) + 2))
+	Ok(One(p1, program_pointer(program) + 2))
 }
 
-fn params2(state: State, m1, m2) {
-	try p1 = get_value(state, 1, mode: m1)
-	try p2 = get_value(state, 2, mode: m2)
+fn params2(program: Program, m1, m2) {
+	try p1 = get_value(program, 1, mode: m1)
+	try p2 = get_value(program, 2, mode: m2)
 
-	Ok(Two(p1, p2, state_pointer(state) + 3))
+	Ok(Two(p1, p2, program_pointer(program) + 3))
 }
 
-fn params3(state: State, m1, m2, m3) {
-	try p1 = get_value(state, 1, mode: m1)
-	try p2 = get_value(state, 2, mode: m2)
-	try p3 = get_value(state, 3, mode: m3)
+fn params3(program: Program, m1, m2, m3) {
+	try p1 = get_value(program, 1, mode: m1)
+	try p2 = get_value(program, 2, mode: m2)
+	try p3 = get_value(program, 3, mode: m3)
 
-	Ok(Three(p1, p2, p3, state_pointer(state) + 4))
+	Ok(Three(p1, p2, p3, program_pointer(program) + 4))
 }
 
-fn consume(state: State) -> Stage {
+pub type ConsumeReturn{
+	ConsumeReturn(
+		stage: Stage,
+		next_inputs: List(Int),
+	)
+}
+
+fn consume(program: Program, inputs: List(Int)) -> ConsumeReturn {
 	// io.debug(mem)
 	// io.debug(pointer)
-	let error = Error(state)
+	let error = ConsumeReturn(
+		stage: Failure(program),
+		next_inputs: inputs,
+	)
 
-	case get_op_code(state) {
+	case get_op_code(program) {
 		Ok(op_code) ->
 			case op_code {
 				Add(m1, m2, m3) -> {
@@ -181,156 +185,151 @@ fn consume(state: State) -> Stage {
 					// io.debug(m1)
 					// io.debug(m2)
 					// io.debug(m3)
-					params3(state, m1, m2, m3)
+					params3(program, m1, m2, m3)
 						|> result.map(fn(params: Three) {
 							// io.debug(params.val3)
 							let next_mem = put(
-								state_mem(state), params.val3, params.val1 + params.val2
+								program_mem(program), params.val3, params.val1 + params.val2
 							)
 
-							let next_state = State(
+							let next_program = Program(
 								mem : next_mem,
 								pointer: params.next_pointer,
-								inputs: state_inputs(state),
 							)
-							consume(next_state)
+							consume(next_program, inputs)
 						})
 						|> result.unwrap(error)
 				}
 				Multiply(m1, m2, m3) -> {
 					// io.println("Multiply")
-					let params = params3(state, m1, m2, m3)
+					let params = params3(program, m1, m2, m3)
 
 					case params {
 						Ok(params) ->
 							{
 								let next_mem = put(
-									state_mem(state), params.val3, params.val1 * params.val2
+									program_mem(program), params.val3, params.val1 * params.val2
 								)
 
-								let next_state = State(
+								let next_program = Program(
 									mem : next_mem,
 									pointer: params.next_pointer,
-									inputs: state_inputs(state),
 								)
-								consume(next_state)
+								consume(next_program, inputs)
 							}
 						_ ->
 							error
 					}
 				}
 				Store(m1) -> {
-					params1(state, m1)
+					params1(program, m1)
 						|> result.map(fn(one: One) {
-							let input = state_inputs(state)
+							let input = inputs
 								|> list.head
 								|> result.unwrap(0)
 
-							let next_mem = put(state_mem(state), one.val1, input)
+							let next_inputs = inputs |> list.drop(1)
 
-							let next_inputs = state_inputs(state) |> list.drop(1)
+							let next_mem = put(program_mem(program), one.val1, input)
 
-							let next_state = State(
+							let next_program = Program(
 								mem : next_mem,
 								pointer: one.next_pointer,
-								inputs: next_inputs,
 							)
-							consume(next_state)
+							consume(next_program, next_inputs)
 						})
 						|> result.unwrap(error)
 				}
 				Out(m1) -> {
-					params1(state, m1)
+					params1(program, m1)
 						|> result.map(fn(one: One) {
 							// io.debug(one.val1)
-							let next_state = State(
-								mem : state_mem(state),
+							let next_program = Program(
+								mem : program_mem(program),
 								pointer: one.next_pointer,
-								inputs: state_inputs(state),
 							)
 
-							Output(
-								state : next_state,
-								outputs: [one.val1],
+							ConsumeReturn(
+								Output(
+									program : next_program,
+									outputs: [one.val1],
+								),
+								inputs
 							)
 						})
 						|> result.unwrap(error)
 				}
 				JumpIfTrue(m1, m2) -> {
-					params2(state, m1, m2)
+					params2(program, m1, m2)
 						|> result.map(fn(two: Two) {
 							let next_pointer = case two.val1 {
 								0 -> two.next_pointer
 								_ -> two.val2
 							}
 
-							let next_state = State(
-								mem : state_mem(state),
+							let next_program = Program(
+								mem : program_mem(program),
 								pointer: next_pointer,
-								inputs: state_inputs(state),
 							)
-							consume(next_state)
+							consume(next_program, inputs)
 						})
 						|> result.unwrap(error)
 				}
 				JumpIfFalse(m1, m2) -> {
-					params2(state, m1, m2)
+					params2(program, m1, m2)
 						|> result.map(fn(two: Two) {
 							let next_pointer = case two.val1 {
 								0 -> two.val2
 								_ -> two.next_pointer
 							}
 
-							let next_state = State(
-								mem : state_mem(state),
+							let next_program = Program(
+								mem : program_mem(program),
 								pointer: next_pointer,
-								inputs: state_inputs(state),
 							)
-							consume(next_state)
+							consume(next_program, inputs)
 						})
 						|> result.unwrap(error)
 				}
 				LessThan(m1, m2, m3) -> {
-					params3(state, m1, m2, m3)
+					params3(program, m1, m2, m3)
 						|> result.map(fn(three: Three) {
 							let value = case three.val1 < three.val2 {
 								True -> 1
 								False -> 0
 							}
 							let next_mem = put(
-								state_mem(state), three.val3, value
+								program_mem(program), three.val3, value
 							)
 
-							let next_state = State(
+							let next_program = Program(
 								mem : next_mem,
 								pointer: three.next_pointer,
-								inputs: state_inputs(state),
 							)
-							consume(next_state)
+							consume(next_program, inputs)
 						})
 						|> result.unwrap(error)
 				}
 				Equal(m1, m2, m3) -> {
-					params3(state, m1, m2, m3)
+					params3(program, m1, m2, m3)
 						|> result.map(fn(three: Three) {
 							let value = case three.val1 == three.val2 {
 								True -> 1
 								False -> 0
 							}
-							let next_mem = put(state_mem(state), three.val3, value)
+							let next_mem = put(program_mem(program), three.val3, value)
 
-							let next_state = State(
+							let next_program = Program(
 								mem : next_mem,
 								pointer: three.next_pointer,
-								inputs: state_inputs(state),
 							)
-							consume(next_state)
+							consume(next_program, inputs)
 						})
 						|> result.unwrap(error)
 				}
 				Halt -> {
 					// io.println("Halt")
-					Halted(state)
+					ConsumeReturn(Halted(program), inputs)
 				}
 			}
 		_ ->
@@ -338,30 +337,29 @@ fn consume(state: State) -> Stage {
 	}
 }
 
-fn consume_until_halted(stage: Stage, outputs: List(Int)) -> Return {
+fn consume_until_halted(stage: Stage, inputs: List(Int), outputs: List(Int)) -> Return {
 	case stage {
-		Halted(state) -> Return(state, outputs)
-		Error(state) -> Return(state, outputs)
-		Output(state, new_outputs) -> {
+		Halted(program) -> Return(program, outputs)
+		Failure(program) -> Return(program, outputs)
+		Output(program, new_outputs) -> {
 			// io.debug("Output")
 			// io.debug(output)
-			let next_stage = consume(state)
+			let ConsumeReturn(next_stage, next_inputs) = consume(program, inputs)
 			let next_outputs = list.append(outputs, new_outputs)
 			// io.debug(next_outputs)
-			consume_until_halted(next_stage, next_outputs)
+			consume_until_halted(next_stage, next_inputs, next_outputs)
 		}
 	}
 }
 
 
 pub fn main(mem: List(Int), input: Int) -> Return {
-	let state = State(
+	let program = Program(
 		mem: mem,
 		pointer: 0,
-		inputs: [input],
 	)
-	let stage = Output(state, [])
-	consume_until_halted(stage, [])
+	let stage = Output(program, [])
+	consume_until_halted(stage, [input], [])
 }
 
 fn sum(a:Int, b:Int) { a + b }
@@ -372,13 +370,12 @@ fn list_max(lst) {
 
 pub fn sequence(mem: List(Int), phase_seq: List(Int)) -> Int {
 	let accumulate = fn(phase: Int, input: Int) {
-		let state = State(
+		let program = Program(
 			mem: mem,
 			pointer: 0,
-			inputs: [phase, input],
 		)
-		let stage = Output(state, [])
-		let return = consume_until_halted(stage ,[])
+		let stage = Output(program, [])
+		let return = consume_until_halted(stage ,[phase, input], [])
 
 		// Add the outputs
 		list.fold(over: return.outputs, from: 0, with: sum)
@@ -424,66 +421,53 @@ pub fn day7(mem: List(Int)) -> Int {
 		|> list_max
 }
 
-// fn feedback_loop_run_amplifier(state: State, input: Int) -> Stage {
-// 	let next_state = State(
-// 		mem: state_mem(state),
-// 		pointer: state_pointer(state),
-// 		inputs: [input]
-// 	)
-// 	let next_stage = consume(next_state)
-
-// 	next_stage
-// }
-
-// fn feedback_loop_process_next_in_queue(queue_: queue.Queue(Stage), input: Int) -> Int {
+// fn feedback_loop__process_next_in_queue(queue_: queue.Queue(Stage), inputs: List(Int)) -> List(Int) {
 // 	case queue.pop_front(queue_) {
 // 		Error(_) ->
-// 			0
+// 			[]
 // 		Ok(pair) -> {
 // 			let tuple(amplifier_stage, amplifier_stages) = pair
-// 			let run_amplifier = fn(state: State) {
+// 			let run_amplifier = fn(program: Program) -> List(Int) {
 // 				// Run amplifier using previous output as input
 // 				// On Output, store output and run next amplifier
 // 				// Put this amplifier at the end of the queue
-// 				let next_state = State(
-// 					mem: state_mem(state),
-// 					pointer: state_pointer(state),
-// 					inputs: [input]
+// 				let next_program = Program(
+// 					mem: program_mem(program),
+// 					pointer: program_pointer(program),
 // 				)
-// 				let next_stage = consume(next_state)
+// 				let ConsumeReturn(next_stage, next_inputs) = consume(next_program, inputs)
 // 				case next_stage {
-// 					Output(_, output) ->
-// 						run(
+// 					Output(_, outputs) ->
+// 						feedback_loop__process_next_in_queue(
 // 							queue.push_back(
 // 								amplifier_stages, next_stage
 // 							),
-// 							output
+// 							outputs
 // 						)
 // 					_ ->
-// 						run(
+// 						feedback_loop__process_next_in_queue(
 // 							queue.push_back(
 // 								amplifier_stages, next_stage
 // 							),
-// 							input
+// 							next_inputs
 // 						)
 // 				}
 // 			}
+
 // 			case amplifier_stage {
-// 				Active(state) ->
-// 					feedback_loop_run_amplifier(state, input)
-// 				Output(state, _) ->
-// 					feedback_loop_run_amplifier(state, input)
+// 				Output(program, _) ->
+// 					run_amplifier(program)
 // 				// If the amplifier is already halted, then stop
-// 				Halted(state) -> input
-// 				Error(state) -> input
+// 				Halted(program) -> inputs
+// 				Failure(program) -> inputs
 // 			}
 // 		}
 // 	}
 // }
 
-// pub fn feedback_loop(mem: Mem, phase_seq: List(Int)) -> Int {
+// pub fn feedback_loop(mem: Mem, phase_seq: List(Int)) -> List(Int) {
 // 	let make_amplifier = fn(phase) {
-// 		State(
+// 		Program(
 // 			mem: mem,
 // 			pointer: 0,
 // 			inputs: [phase],
@@ -491,8 +475,8 @@ pub fn day7(mem: List(Int)) -> Int {
 // 	}
 
 // 	let q = list.map(phase_seq, make_amplifier)
-// 		|> list.map(Active)
+// 		|> list.map(fn(program) { Output(program, []) })
 // 		|> queue.from_list
 
-// 	feedback_loop_process_next_in_queue(q, 0)
+// 	feedback_loop__process_next_in_queue(q, [])
 // }

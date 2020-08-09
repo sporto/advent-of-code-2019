@@ -431,13 +431,13 @@ pub fn permutations(lst: List(Int)) -> List(List(Int)) {
 	}
 }
 
-pub fn combinations(n: Int) -> List(List(Int)) {
-	list.range(0, n)
+pub fn combinations(a:Int, b: Int) -> List(List(Int)) {
+	list.range(a, b+1)
 		|> permutations
 }
 
 pub fn day7(mem: List(Int)) -> Int {
-	combinations(5)
+	combinations(0,4)
 		|> list.map(fn(lst) {
 			sequence(mem, lst)
 		})
@@ -539,7 +539,7 @@ fn code_for_index(index: Int) -> String {
 	}
 }
 
-pub fn feedback_loop(mem: Mem, phase_seq: List(Int)) -> List(Int) {
+pub fn feedback_loop(mem: Mem, phase_seq: List(Int)) -> Int {
 	let make_amplifier = fn(index, phase) {
 		let code = code_for_index(index)
 		// io.println(code)
@@ -553,8 +553,8 @@ pub fn feedback_loop(mem: Mem, phase_seq: List(Int)) -> List(Int) {
 		)
 	}
 
-	io.println("phase_seq")
-	io.debug(phase_seq)
+	// io.println("phase_seq")
+	// io.debug(phase_seq)
 
 	let queue = list.index_map(phase_seq, make_amplifier)
 		|> queue.from_list
@@ -562,4 +562,16 @@ pub fn feedback_loop(mem: Mem, phase_seq: List(Int)) -> List(Int) {
 	// print_queue_order(queue)
 
 	feedback_loop__process_next_in_queue(queue, [])
+		|> list.reverse
+		|> list.head
+		|> result.unwrap(0)
+}
+
+pub fn day7_part2(mem: List(Int)) -> Int {
+	// io.debug(combinations(5,9))
+	combinations(5,9)
+		|> list.map(fn(lst) {
+			feedback_loop(mem, lst)
+		})
+		|> list_max
 }

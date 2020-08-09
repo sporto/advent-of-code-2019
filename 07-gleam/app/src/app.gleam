@@ -26,6 +26,7 @@ type Mem = List(Int)
 
 pub type Program {
 	Program(
+		code: String,
 		mem: Mem,
 		pointer: Int,
 		inputs: List(Int),
@@ -156,6 +157,7 @@ fn consume(program: Program) -> Program {
 	// io.debug(mem)
 	// io.debug(pointer)
 	let error = Program(
+		code: program.code,
 		mem: program.mem,
 		pointer: program.pointer,
 		inputs: program.inputs,
@@ -179,6 +181,7 @@ fn consume(program: Program) -> Program {
 							)
 
 							let next_program = Program(
+								code: program.code,
 								mem : next_mem,
 								pointer: params.next_pointer,
 								inputs: program.inputs,
@@ -201,6 +204,7 @@ fn consume(program: Program) -> Program {
 								)
 
 								let next_program = Program(
+									code: program.code,
 									mem : next_mem,
 									pointer: params.next_pointer,
 									inputs: program.inputs,
@@ -225,6 +229,7 @@ fn consume(program: Program) -> Program {
 							let next_mem = put(program_mem(program), one.val1, input)
 
 							let next_program = Program(
+								code: program.code,
 								mem : next_mem,
 								pointer: one.next_pointer,
 								inputs: next_inputs,
@@ -240,6 +245,7 @@ fn consume(program: Program) -> Program {
 						|> result.map(fn(one: One) {
 							// io.debug(one.val1)
 							Program(
+								code: program.code,
 								mem : program_mem(program),
 								pointer: one.next_pointer,
 								inputs: program.inputs,
@@ -258,6 +264,7 @@ fn consume(program: Program) -> Program {
 							}
 
 							let next_program = Program(
+								code: program.code,
 								mem : program_mem(program),
 								pointer: next_pointer,
 								inputs: program.inputs,
@@ -277,6 +284,7 @@ fn consume(program: Program) -> Program {
 							}
 
 							let next_program = Program(
+								code: program.code,
 								mem : program_mem(program),
 								pointer: next_pointer,
 								inputs: program.inputs,
@@ -298,6 +306,7 @@ fn consume(program: Program) -> Program {
 								program_mem(program), three.val3, value
 							)
 							let next_program = Program(
+								code: program.code,
 								mem : next_mem,
 								pointer: three.next_pointer,
 								inputs: program.inputs,
@@ -318,6 +327,7 @@ fn consume(program: Program) -> Program {
 							let next_mem = put(program_mem(program), three.val3, value)
 
 							let next_program = Program(
+								code: program.code,
 								mem : next_mem,
 								pointer: three.next_pointer,
 								inputs: program.inputs,
@@ -331,6 +341,7 @@ fn consume(program: Program) -> Program {
 				Halt -> {
 					// io.println("Halt")
 					Program(
+						code: program.code,
 						mem : program.mem,
 						pointer: program.pointer,
 						inputs: program.inputs,
@@ -361,6 +372,7 @@ fn consume_until_halted(program: Program) -> Program {
 
 pub fn main(mem: List(Int), input: Int) -> Program {
 	let program = Program(
+		code: "",
 		mem: mem,
 		pointer: 0,
 		inputs: [input],
@@ -379,6 +391,7 @@ fn list_max(lst) {
 pub fn sequence(mem: List(Int), phase_seq: List(Int)) -> Int {
 	let accumulate = fn(phase: Int, input: Int) {
 		let program = Program(
+			code: "",
 			mem: mem,
 			pointer: 0,
 			inputs: [phase, input],
@@ -431,62 +444,122 @@ pub fn day7(mem: List(Int)) -> Int {
 		|> list_max
 }
 
-// fn feedback_loop__process_next_in_queue(queue_: queue.Queue(Stage), inputs: List(Int)) -> List(Int) {
-// 	case queue.pop_front(queue_) {
-// 		Error(_) ->
-// 			[]
-// 		Ok(pair) -> {
-// 			let tuple(amplifier_stage, amplifier_stages) = pair
-// 			let run_amplifier = fn(program: Program) -> List(Int) {
-// 				// Run amplifier using previous output as input
-// 				// On Output, store output and run next amplifier
-// 				// Put this amplifier at the end of the queue
-// 				let next_program = Program(
-// 					mem: program_mem(program),
-// 					pointer: program_pointer(program),
-// 				)
-// 				let ConsumeReturn(next_stage, next_inputs) = consume(next_program, inputs)
-// 				case next_stage {
-// 					Output(_, outputs) ->
-// 						feedback_loop__process_next_in_queue(
-// 							queue.push_back(
-// 								amplifier_stages, next_stage
-// 							),
-// 							outputs
-// 						)
-// 					_ ->
-// 						feedback_loop__process_next_in_queue(
-// 							queue.push_back(
-// 								amplifier_stages, next_stage
-// 							),
-// 							next_inputs
-// 						)
-// 				}
-// 			}
+fn print_queue_order(queue_) {
+	// io.debug(queue_)
+	queue_
+		|> queue.to_list
+		|> list.map(fn(p: Program) { p.code })
+		|> list.reverse
+		|> io.debug
+}
 
-// 			case amplifier_stage {
-// 				Output(program, _) ->
-// 					run_amplifier(program)
-// 				// If the amplifier is already halted, then stop
-// 				Halted(program) -> inputs
-// 				Failure(program) -> inputs
-// 			}
-// 		}
-// 	}
-// }
+fn feedback_loop__process_next_in_queue(
+		queue_: queue.Queue(Program),
+		previous_outputs: List(Int)
+	) -> List(Int) {
 
-// pub fn feedback_loop(mem: Mem, phase_seq: List(Int)) -> List(Int) {
-// 	let make_amplifier = fn(phase) {
-// 		Program(
-// 			mem: mem,
-// 			pointer: 0,
-// 			inputs: [phase],
-// 		)
-// 	}
+	// print_queue_order(queue_)
 
-// 	let q = list.map(phase_seq, make_amplifier)
-// 		|> list.map(fn(program) { Output(program, []) })
-// 		|> queue.from_list
+	case queue.pop_front(queue_) {
+		Error(_) ->
+			[]
+		Ok(pair) -> {
+			let tuple(amplifier_program, rest_amplifier_programs) = pair
 
-// 	feedback_loop__process_next_in_queue(q, [])
-// }
+			// io.println(amplifier_program.code)
+			// io.debug(amplifier_program.state)
+
+			// io.debug(amplifier_program.inputs)
+
+			case amplifier_program.state {
+				// If the amplifier is already halted, then stop
+				Halted -> amplifier_program.inputs
+				Failure -> amplifier_program.inputs
+				_ -> {
+					let next_inputs = list.append(amplifier_program.inputs, previous_outputs)
+
+					// io.println("next_inputs")
+					// io.debug(next_inputs)
+
+					let amplifier = Program(
+						code: amplifier_program.code,
+						mem: amplifier_program.mem,
+						pointer: amplifier_program.pointer,
+						inputs: next_inputs,
+						outputs: amplifier_program.outputs,
+						state: amplifier_program.state,
+					)
+
+					// io.println(amplifier.code)
+
+					let consumed_amplifier_program = consume(amplifier)
+
+					// io.println(consumed_amplifier_program.code)
+
+					let outputs = consumed_amplifier_program.outputs
+
+					// io.debug(outputs)
+
+					let next_amplifier_program = Program(
+						code: consumed_amplifier_program.code,
+						mem: consumed_amplifier_program.mem,
+						pointer: consumed_amplifier_program.pointer,
+						inputs: consumed_amplifier_program.inputs,
+						outputs: [],
+						state: consumed_amplifier_program.state,
+					)
+
+					// io.println(next_amplifier_program.code)
+
+					let next_queue = queue.push_front(
+						rest_amplifier_programs,
+						next_amplifier_program
+					)
+
+					// print_queue_order(next_queue)
+
+					// io.debug(rest_amplifier_programs)
+					// io.debug(next_queue)
+
+					feedback_loop__process_next_in_queue(next_queue, outputs)
+				}
+			}
+		}
+	}
+}
+
+fn code_for_index(index: Int) -> String {
+	case index {
+		0 -> "A"
+		1 -> "B"
+		2 -> "C"
+		3 -> "D"
+		4 -> "E"
+		_ -> "X"
+	}
+}
+
+pub fn feedback_loop(mem: Mem, phase_seq: List(Int)) -> List(Int) {
+	let make_amplifier = fn(index, phase) {
+		let code = code_for_index(index)
+		// io.println(code)
+		Program(
+			code: code,
+			mem: mem,
+			pointer: 0,
+			inputs: [phase],
+			outputs: [],
+			state: Running,
+		)
+	}
+
+	io.println("phase_seq")
+	io.debug(phase_seq)
+
+	let queue = list.index_map(phase_seq, make_amplifier)
+		|> queue.from_list
+
+	// print_queue_order(queue)
+
+	feedback_loop__process_next_in_queue(queue, [])
+}

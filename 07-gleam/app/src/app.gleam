@@ -50,6 +50,28 @@ fn program_pointer(program: Program) -> Int {
 	program.pointer
 }
 
+fn set_pointer(program: Program, pointer: Int) -> Program {
+	Program(
+		code: program.code,
+		mem : program.mem,
+		pointer: pointer,
+		inputs: program.inputs,
+		outputs: program.outputs,
+		state: program.state,
+	)
+}
+
+fn set_state(program: Program, state: State) -> Program {
+	Program(
+		code: program.code,
+		mem : program.mem,
+		pointer: program.pointer,
+		inputs: program.inputs,
+		outputs: program.outputs,
+		state: state,
+	)
+}
+
 type One {
 	One(
 		val1: Int,
@@ -263,14 +285,8 @@ fn consume(program: Program) -> Program {
 								_ -> two.val2
 							}
 
-							let next_program = Program(
-								code: program.code,
-								mem : program_mem(program),
-								pointer: next_pointer,
-								inputs: program.inputs,
-								outputs: program.outputs,
-								state: Running,
-							)
+							let next_program = program
+								|> set_pointer(next_pointer)
 							consume(next_program)
 						})
 						|> result.unwrap(error)
@@ -283,14 +299,8 @@ fn consume(program: Program) -> Program {
 								_ -> two.next_pointer
 							}
 
-							let next_program = Program(
-								code: program.code,
-								mem : program_mem(program),
-								pointer: next_pointer,
-								inputs: program.inputs,
-								outputs: program.outputs,
-								state: Running,
-							)
+							let next_program = program
+								|> set_pointer(next_pointer)
 							consume(next_program)
 						})
 						|> result.unwrap(error)
@@ -339,15 +349,8 @@ fn consume(program: Program) -> Program {
 						|> result.unwrap(error)
 				}
 				Halt -> {
-					// io.println("Halt")
-					Program(
-						code: program.code,
-						mem : program.mem,
-						pointer: program.pointer,
-						inputs: program.inputs,
-						outputs: program.outputs,
-						state: Halted,
-					)
+					program
+						|> set_state(Halted)
 				}
 			}
 		_ ->

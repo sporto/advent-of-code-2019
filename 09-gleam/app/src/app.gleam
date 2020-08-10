@@ -20,6 +20,7 @@ pub type OpCode {
 pub type ParameterMode {
 	Position
 	Value
+	Relative
 }
 
 type Mem = List(Int)
@@ -32,6 +33,7 @@ pub type Program {
 		inputs: List(Int),
 		outputs: List(Int),
 		state: State,
+		relative_base: Int,
 	)
 }
 
@@ -58,6 +60,7 @@ fn set_pointer(program: Program, pointer: Int) -> Program {
 		inputs: program.inputs,
 		outputs: program.outputs,
 		state: program.state,
+		relative_base: program.relative_base,
 	)
 }
 
@@ -69,6 +72,43 @@ fn set_state(program: Program, state: State) -> Program {
 		inputs: program.inputs,
 		outputs: program.outputs,
 		state: state,
+		relative_base: program.relative_base,
+	)
+}
+
+fn set_mem(program: Program, mem: List(Int)) -> Program {
+	Program(
+		code: program.code,
+		mem : mem,
+		pointer: program.pointer,
+		inputs: program.inputs,
+		outputs: program.outputs,
+		state: program.state,
+		relative_base: program.relative_base,
+	)
+}
+
+fn set_inputs(program: Program, inputs: List(Int)) -> Program {
+	Program(
+		code: program.code,
+		mem : program.mem,
+		pointer: program.pointer,
+		inputs: inputs,
+		outputs: program.outputs,
+		state: program.state,
+		relative_base: program.relative_base,
+	)
+}
+
+fn set_outputs(program: Program, outputs: List(Int)) -> Program {
+	Program(
+		code: program.code,
+		mem : program.mem,
+		pointer: program.pointer,
+		inputs: program.inputs,
+		outputs: outputs,
+		state: program.state,
+		relative_base: program.relative_base,
 	)
 }
 
@@ -101,11 +141,17 @@ pub fn mode_for(num: Int, position: Int) -> ParameterMode {
 		|> int.to_string
 		|> string.drop_right(position + 1)
 
-	case string.ends_with(n, "1") {
+	case string.ends_with(n, "2") {
 		True ->
-			Value
-		False ->
-			Position
+			Relative
+		False -> {
+			case string.ends_with(n, "1") {
+				True ->
+					Value
+				False ->
+					Position
+			}
+		}
 	}
 }
 
@@ -144,6 +190,11 @@ fn get_value(program: Program, offset address_offset: Int, mode mode: ParameterM
 			|> result.then(_, fn(address) { 
 				list.at(program_mem(program), address) 
 			})
+		Relative ->
+			first
+			|> result.then(_, fn(address) { 
+				list.at(program_mem(program), address + program.relative_base) 
+			})
 	}
 }
 
@@ -178,14 +229,8 @@ fn params3(program: Program, m1, m2, m3) {
 fn consume(program: Program) -> Program {
 	// io.debug(mem)
 	// io.debug(pointer)
-	let error = Program(
-		code: program.code,
-		mem: program.mem,
-		pointer: program.pointer,
-		inputs: program.inputs,
-		outputs: program.outputs,
-		state: Failure,
-	)
+	let error = program
+		|> set_state(Failure)
 
 	case get_op_code(program) {
 		Ok(op_code) ->
@@ -202,14 +247,10 @@ fn consume(program: Program) -> Program {
 								program_mem(program), params.val3, params.val1 + params.val2
 							)
 
-							let next_program = Program(
-								code: program.code,
-								mem : next_mem,
-								pointer: params.next_pointer,
-								inputs: program.inputs,
-								outputs: program.outputs,
-								state: Running,
-							)
+							let next_program = program
+								|> set_mem(next_mem)
+								|> set_pointer(params.next_pointer)
+
 							consume(next_program)
 						})
 						|> result.unwrap(error)
@@ -225,14 +266,10 @@ fn consume(program: Program) -> Program {
 									program_mem(program), params.val3, params.val1 * params.val2
 								)
 
-								let next_program = Program(
-									code: program.code,
-									mem : next_mem,
-									pointer: params.next_pointer,
-									inputs: program.inputs,
-									outputs: program.outputs,
-									state: Running,
-								)
+								let next_program = program
+									|> set_mem(next_mem)
+									|> set_pointer(params.next_pointer)
+
 								consume(next_program)
 							}
 						_ ->
@@ -250,14 +287,11 @@ fn consume(program: Program) -> Program {
 
 							let next_mem = put(program_mem(program), one.val1, input)
 
-							let next_program = Program(
-								code: program.code,
-								mem : next_mem,
-								pointer: one.next_pointer,
-								inputs: next_inputs,
-								outputs: program.outputs,
-								state: Running,
-							)
+							let next_program = program
+								|> set_mem(next_mem)
+								|> set_pointer(one.next_pointer)
+								|> set_inputs(next_inputs)
+
 							consume(next_program)
 						})
 						|> result.unwrap(error)
@@ -266,14 +300,10 @@ fn consume(program: Program) -> Program {
 					params1(program, m1)
 						|> result.map(fn(one: One) {
 							// io.debug(one.val1)
-							Program(
-								code: program.code,
-								mem : program_mem(program),
-								pointer: one.next_pointer,
-								inputs: program.inputs,
-								outputs: list.append(program.outputs, [one.val1]),
-								state: Output(one.val1),
-							)
+							program
+								|> set_pointer(one.next_pointer)
+								|> set_outputs(list.append(program.outputs, [one.val1]))
+								|> set_state(Output(one.val1))
 						})
 						|> result.unwrap(error)
 				}
@@ -315,14 +345,9 @@ fn consume(program: Program) -> Program {
 							let next_mem = put(
 								program_mem(program), three.val3, value
 							)
-							let next_program = Program(
-								code: program.code,
-								mem : next_mem,
-								pointer: three.next_pointer,
-								inputs: program.inputs,
-								outputs: program.outputs,
-								state: Running,
-							)
+							let next_program = program
+								|> set_mem(next_mem)
+								|> set_pointer(three.next_pointer)
 							consume(next_program)
 						})
 						|> result.unwrap(error)
@@ -336,14 +361,10 @@ fn consume(program: Program) -> Program {
 							}
 							let next_mem = put(program_mem(program), three.val3, value)
 
-							let next_program = Program(
-								code: program.code,
-								mem : next_mem,
-								pointer: three.next_pointer,
-								inputs: program.inputs,
-								outputs: program.outputs,
-								state: Running,
-							)
+							let next_program = program
+								|> set_mem(next_mem)
+								|> set_pointer(three.next_pointer)
+
 							consume(next_program)
 						})
 						|> result.unwrap(error)
@@ -381,6 +402,7 @@ pub fn main(mem: List(Int), input: Int) -> Program {
 		inputs: [input],
 		outputs: [],
 		state: Running,
+		relative_base: 0,
 	)
 	consume_until_halted(program)
 }
@@ -400,6 +422,7 @@ pub fn sequence(mem: List(Int), phase_seq: List(Int)) -> Int {
 			inputs: [phase, input],
 			outputs: [],
 			state: Running,
+			relative_base: 0,
 		)
 		let return = consume_until_halted(program)
 
@@ -484,14 +507,8 @@ fn feedback_loop__process_next_in_queue(
 					// io.println("next_inputs")
 					// io.debug(next_inputs)
 
-					let amplifier = Program(
-						code: amplifier_program.code,
-						mem: amplifier_program.mem,
-						pointer: amplifier_program.pointer,
-						inputs: next_inputs,
-						outputs: amplifier_program.outputs,
-						state: amplifier_program.state,
-					)
+					let amplifier = amplifier_program
+						|> set_inputs(next_inputs)
 
 					// io.println(amplifier.code)
 
@@ -503,14 +520,8 @@ fn feedback_loop__process_next_in_queue(
 
 					// io.debug(outputs)
 
-					let next_amplifier_program = Program(
-						code: consumed_amplifier_program.code,
-						mem: consumed_amplifier_program.mem,
-						pointer: consumed_amplifier_program.pointer,
-						inputs: consumed_amplifier_program.inputs,
-						outputs: [],
-						state: consumed_amplifier_program.state,
-					)
+					let next_amplifier_program = consumed_amplifier_program
+						|> set_outputs([])
 
 					// io.println(next_amplifier_program.code)
 
@@ -553,6 +564,7 @@ pub fn feedback_loop(mem: Mem, phase_seq: List(Int)) -> Int {
 			inputs: [phase],
 			outputs: [],
 			state: Running,
+			relative_base: 0,
 		)
 	}
 

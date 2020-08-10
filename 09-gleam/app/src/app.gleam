@@ -15,6 +15,7 @@ pub type OpCode {
 	Equal(ParameterMode, ParameterMode, ParameterMode)
 	Halt
 	Out(ParameterMode)
+	AdjustRelativeBase(ParameterMode)
 }
 
 pub type ParameterMode {
@@ -112,6 +113,18 @@ fn set_outputs(program: Program, outputs: List(Int)) -> Program {
 	)
 }
 
+fn set_relative_base(program: Program, relative_base: Int) -> Program {
+	Program(
+		code: program.code,
+		mem : program.mem,
+		pointer: program.pointer,
+		inputs: program.inputs,
+		outputs: program.outputs,
+		state: program.state,
+		relative_base: relative_base,
+	)
+}
+
 type One {
 	One(
 		val1: Int,
@@ -168,6 +181,7 @@ pub fn num_to_op_code(num: Int) {
 		6 -> JumpIfFalse(m1, m2)
 		7 -> LessThan(m1, m2, Value)
 		8 -> Equal(m1, m2, Value)
+		9 -> AdjustRelativeBase(m1)
 		_ -> Halt
 	}
 }
@@ -180,21 +194,23 @@ fn get_op_code(program: Program) -> Result(OpCode, Nil) {
 fn get_value(program: Program, offset address_offset: Int, mode mode: ParameterMode)  -> Result(Int, Nil) {
 	let first = list.at(
 		program_mem(program), program_pointer(program) + address_offset
-	)
+	) |> result.or(Ok(0))
 
 	case mode {
 		Value ->
 			first
 		Position ->
 			first
-			|> result.then(_, fn(address) { 
-				list.at(program_mem(program), address) 
+			|> result.then(_, fn(address) {
+				list.at(program_mem(program), address)
 			})
+			|> result.or(Ok(0))
 		Relative ->
 			first
-			|> result.then(_, fn(address) { 
-				list.at(program_mem(program), address + program.relative_base) 
+			|> result.then(_, fn(address) {
+				list.at(program_mem(program), address + program.relative_base)
 			})
+			|> result.or(Ok(0))
 	}
 }
 
@@ -369,6 +385,19 @@ fn consume(program: Program) -> Program {
 						})
 						|> result.unwrap(error)
 				}
+				AdjustRelativeBase(m1) -> {
+					params1(program, m1)
+						|> result.map(fn(one: One) {
+							let next_relative_base = program.relative_base + one.val1
+
+							let next_program = program
+								|> set_pointer(one.next_pointer)
+								|> set_relative_base(next_relative_base)
+
+							consume(next_program)
+						})
+						|> result.unwrap(error)
+				}
 				Halt -> {
 					program
 						|> set_state(Halted)
@@ -394,12 +423,12 @@ fn consume_until_halted(program: Program) -> Program {
 }
 
 
-pub fn main(mem: List(Int), input: Int) -> Program {
+pub fn main(mem: List(Int), inputs: List(Int)) -> Program {
 	let program = Program(
 		code: "",
 		mem: mem,
 		pointer: 0,
-		inputs: [input],
+		inputs: inputs,
 		outputs: [],
 		state: Running,
 		relative_base: 0,

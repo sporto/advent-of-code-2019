@@ -248,7 +248,11 @@ fn consume(program: Program) -> Program {
 	let error = program
 		|> set_state(Failure)
 
-	case get_op_code(program) {
+	let op_code = get_op_code(program)
+	// io.debug(program.pointer)
+	// io.debug(op_code)
+
+	case op_code {
 		Ok(op_code) ->
 			case op_code {
 				Add(m1, m2, m3) -> {
@@ -340,6 +344,8 @@ fn consume(program: Program) -> Program {
 				JumpIfFalse(m1, m2) -> {
 					params2(program, m1, m2)
 						|> result.map(fn(two: Two) {
+							// io.debug("JumpIfFalse")
+							// io.debug(two.val1)
 							let next_pointer = case two.val1 {
 								0 -> two.val2
 								_ -> two.next_pointer
@@ -415,8 +421,10 @@ fn consume_until_halted(program: Program) -> Program {
 		_ -> {
 			// io.debug("Output")
 			// io.debug(output)
+			// io.debug(program.state)
+			// io.debug(program.outputs)
 			let next_program = consume(program)
-			// io.debug(next_outputs)
+
 			consume_until_halted(next_program)
 		}
 	}

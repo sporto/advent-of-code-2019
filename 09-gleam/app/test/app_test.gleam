@@ -1,7 +1,9 @@
 import app
-import gleam/should
-import gleam/result
+import gleam/int
 import gleam/list
+import gleam/result
+import gleam/should
+import gleam/string
 
 pub fn mode_for_test() {
 	app.mode_for(1002, 1)
@@ -242,5 +244,24 @@ pub fn day9_part1_sample1_test() {
 	let mem = [109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99]
 
 	app.main(mem, []).outputs
+	|> list.take(list.length(mem))
 	|> should.equal(mem)
+}
+
+pub fn day9_part1_sample2_test() {
+	let mem = [1102,34915192,34915192,7,4,7,99,0]
+
+	app.main(mem, []).outputs
+	|> list.head
+	|> result.unwrap(0)
+	|> int.to_string
+	|> string.length
+	|> should.equal(16)
+}
+
+pub fn day9_part1_sample3_test() {
+	let mem = [104,1125899906842624,99]
+
+	app.main(mem, []).outputs
+	|> should.equal([1125899906842624])
 }
